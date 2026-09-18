@@ -52,8 +52,8 @@ FROM ${ART}/docker-redhat-remote/ubi9/ubi-minimal:9.7 AS runtime
 ARG TARGETARCH
 ARG VERSION
 ARG ARTEFACT=atlassian-bitbucket
-# Bitbucket 9.x supports Java 17 and 21.
-ARG JAVA_PACKAGE=java-17-openjdk-headless
+# Bitbucket 10.x runs on Java 21 (the manifest's JAVA_PACKAGE arg overrides this default).
+ARG JAVA_PACKAGE=java-21-openjdk-headless
 ARG PRODUCT_URL
 ARG PRODUCT_SHA256
 

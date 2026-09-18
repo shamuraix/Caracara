@@ -26,19 +26,21 @@ products:
       note: "set from the release notes when re-pinning jira/latest"
   confluence:
     lts:
-      line: "9.2"
-      support_ends: 2026-12-11
-      note: "9.2 LTS (Dec 2024); move confluence/lts to the next LTS line before this date"
+      line: "10.2"
+      # 10.2 is the LTS line Iron Bank tracks (confluence 10.2.18); two years from its .0 release.
+      support_ends: 2027-12-01
+      note: "verify against https://confluence.atlassian.com/doc/confluence-release-notes-327.html"
     latest:
-      line: "10.1"
+      line: "10.6"
       support_ends: null
       note: "set from the release notes when re-pinning confluence/latest"
   bitbucket:
     lts:
-      line: "9.4"
-      support_ends: 2027-01-21
-      note: "9.4 LTS (Jan 2025)"
+      line: "10.2"
+      # 10.2 is the LTS line Iron Bank tracks (bitbucket-lts 10.2.7); two years from its .0 release.
+      support_ends: 2028-01-15
+      note: "verify against https://confluence.atlassian.com/bitbucketserver/bitbucket-data-center-release-notes-872139866.html"
     latest:
-      line: "10.1"
+      line: "10.6"
       support_ends: null
       note: "set from the release notes when re-pinning bitbucket/latest"

@@ -151,7 +151,7 @@
       "matchFileNames": [
         "confluence/lts/**"
       ],
-      "allowedVersions": "/^9\\.2\\./",
+      "allowedVersions": "/^10\\.2\\./",
       "commitMessageTopic": "Confluence LTS"
     },
     {
@@ -161,7 +161,7 @@
       "matchFileNames": [
         "bitbucket/lts/**"
       ],
-      "allowedVersions": "/^9\\.4\\./",
+      "allowedVersions": "/^10\\.2\\./",
       "commitMessageTopic": "Bitbucket LTS"
     },
     {

@@ -14,11 +14,11 @@
 apiVersion: v1
 name: atlassian/bitbucket
 tags:
-  - "10.1.0"
+  - "10.6.0"
   - latest
 args:
   # Renovate bumps VERSION (custom.atlassian datasource) and re-pins the tarball.
-  VERSION: "10.1.0"
+  VERSION: "10.6.0"
   # Bitbucket tarball name (the download path is still software/stash).
   ARTEFACT: atlassian-bitbucket
   # Bitbucket 10.x runs on Java 21; the JDK is an RPM so Copa can patch it.
@@ -31,8 +31,8 @@ labels:
 resources:
   # Product tarball.  sha256 from product-downloads' .sha256 file (scripts/pin-version.sh bitbucket/latest <version>).
   - arg: PRODUCT
-    filename: atlassian-bitbucket-10.1.0.tar.gz
-    url: https://product-downloads.atlassian.com/software/stash/downloads/atlassian-bitbucket-10.1.0.tar.gz
+    filename: atlassian-bitbucket-10.6.0.tar.gz
+    url: https://product-downloads.atlassian.com/software/stash/downloads/atlassian-bitbucket-10.6.0.tar.gz
     validation:
       type: sha256
       value: ""
