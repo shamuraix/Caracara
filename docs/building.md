@@ -39,9 +39,22 @@ per arch and `FROM tini-${TARGETARCH}` to select.
 
 Pinning:
 
-- `scripts/pin-version.sh <product>/<line> <version>` sets `args.VERSION` and
-  `tags` (`[version, line]`), points `PRODUCT` at the new tarball and stores
-  the sha256 from Atlassian's published `.sha256` file (no tarball download).
+- **Iron Bank first.** Each manifest's `upstream.ironbank` names the Iron Bank
+  project the line tracks (`dsop/atlassian/<product>-data-center/<product>-lts`
+  for `lts`; the non-LTS project for `latest`) and the branch (`development`).
+  `scripts/sync-ironbank.sh <product>/<line> | --all` fetches that project's
+  `hardening_manifest.yaml` through Artifactory's `generic-repo1-remote` and
+  `scripts/ironbank.py apply` rewrites ours: `args.VERSION`, `tags`, the
+  `PRODUCT` url and sha256 (the one Iron Bank's pipeline verified), and any
+  resource Iron Bank pins under the same filename shape (tini, git). Nothing
+  else is touched, and the result is idempotent. `--open-mr` commits the
+  change on a `sync/ironbank-<date>` branch and opens a merge request.
+- `scripts/pin-version.sh <product>/<line> <version>` is the manual override:
+  it sets `args.VERSION` and `tags` (`[version, line]`), points `PRODUCT` at
+  the new tarball and stores the sha256 from Atlassian's published `.sha256`
+  file (no tarball download). Use it for an emergency advisory before Iron
+  Bank's development branch has moved; the next sync will overwrite it once
+  Iron Bank catches up.
   Each line's `args` can differ (`JAVA_PACKAGE`, `ARTEFACT`); today every line
   runs Java 21, but a line on an older major would set 17 here.
 - `scripts/pin-resource.sh <dir> <ARG>... | --all` downloads each resource
@@ -54,7 +67,8 @@ Pinning:
 - Renovate bumps the version inside each annotated resource URL
   (`# renovate: datasource=... depName=...`) and runs `pin-resource.sh --all`
   in the same merge request, so a tini or git release arrives as one reviewed
-  change with its new checksum.
+  change with its new checksum. Renovate never bumps `args.VERSION`: product
+  versions are Iron Bank's call.
 
 Anything installed this way (tini, git, copa, crane) is not an RPM: Trivy
 does not see it and Copa cannot patch it. Bumping the manifest entry is the

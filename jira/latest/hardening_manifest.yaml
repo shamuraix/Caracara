@@ -8,16 +8,28 @@
 # Feature releases are supported only until the next feature release plus the
 # bug-fix window, so this line moves often; Renovate follows the newest release
 # of the major in renovate.json.
-# SEED VALUE: the version below is a placeholder chosen offline; run
-# scripts/pin-version.sh <product>/latest <version> with the current feature
-# release (it validates the version exists by fetching Atlassian's .sha256).
+# SEED VALUE: the version below is a placeholder chosen offline; the first
+# scripts/sync-ironbank.sh run replaces it with what Iron Bank pins.
 apiVersion: v1
+# Where the version and checksums come from: scripts/sync-ironbank.sh pulls this
+# project's hardening_manifest.yaml from its `development` branch on
+# repo1.dso.mil (through Artifactory's generic-repo1-remote) and rewrites
+# args.VERSION, tags and the PRODUCT resource below (plus tini/git when Iron
+# Bank pins them).  The weekly rebuild runs the sync first, so every build is
+# the version Iron Bank is currently hardening.
+upstream:
+  ironbank:
+    # Iron Bank Containers / Atlassian / Jira Data Center / jira-node  (the non-LTS
+  # project; adjust `project` if the group names it differently)
+    project: dsop/atlassian/jira-data-center/jira-node
+    ref: development
+    manifest: hardening_manifest.yaml
 name: atlassian/jira
 tags:
   - "11.6.0"
   - latest
 args:
-  # Renovate bumps VERSION (custom.atlassian datasource) and re-pins the tarball.
+  # VERSION comes from the Iron Bank upstream above (sync-ironbank.sh).
   VERSION: "11.6.0"
   # atlassian-jira-software for Jira Software, atlassian-servicedesk for JSM.
   ARTEFACT: atlassian-jira-software

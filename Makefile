@@ -8,7 +8,7 @@ TARGET := $(PRODUCT)/$(LINE)
 PRODUCTS := jira confluence bitbucket
 LINES := lts latest
 
-.PHONY: help lint test build gate patch sign pin pin-resources manifest-check pin-base certs eol
+.PHONY: help lint test build gate patch sign sync pin pin-resources manifest-check pin-base certs eol
 
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -31,7 +31,10 @@ sign: ## sign + attest the image from build.env and move the version tag
 patch: ## copa-patch a live line, e.g. make patch PRODUCT=jira LINE=lts
 	scripts/patch.sh $(TARGET)
 
-pin: ## pin a line's version + tarball sha256, e.g. make pin PRODUCT=jira LINE=lts VERSION=11.3.11
+sync: ## pull versions + checksums from Iron Bank development for every line (or TARGET)
+	scripts/sync-ironbank.sh --all
+
+pin: ## manual override: pin a line's version + tarball sha256 from Atlassian's .sha256, e.g. make pin PRODUCT=jira LINE=lts VERSION=11.3.11
 	scripts/pin-version.sh $(TARGET) $(VERSION)
 
 pin-resources: ## (re)pin every resource sha256 in $(TARGET)/hardening_manifest.yaml (tini, git, copa, crane)

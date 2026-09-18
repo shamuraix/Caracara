@@ -14,11 +14,12 @@ flowchart LR
 
 | Trigger | Action | Output |
 |---|---|---|
-| Renovate MR: base digest or Atlassian version bumped | Full rebuild on the MR, merge, rebuild on main | New `X.Y.Z-<pipeline id>` tag, version tag moved |
+| Renovate MR: base digest or a manifest resource (tini, git, copa, crane) bumped | Full rebuild on the MR, merge, rebuild on main | New `X.Y.Z-<pipeline id>` tag, version tag moved |
+| Iron Bank moves a line (new version on the upstream project's `development` branch) | `sync-ironbank` stage of the weekly rebuild adopts it, builds it, opens an MR | New `X.Y.Z-<pipeline id>` tag; `X.Y.Z` and line tag moved; MR `sync/ironbank-<date>` |
 | GitLab pipeline schedule / Jenkins `cron('H 2 * * 0')` with `JOB=rebuild` | Full rebuild of every supported line: `PRODUCT x LINE` = jira, confluence, bitbucket x lts, latest | New `X.Y.Z-<pipeline id>` tag; `X.Y.Z` and the line tag moved |
 | GitLab pipeline schedule / Jenkins `cron('H 6 * * *')` with `JOB=patch` | Trivy on each live line's version tag; if fixable OS CVEs, `copa patch` and re-gate | Version and line tags moved to the patched digest |
 | Trivy `--exit-on-eol` returns 2 | Fail and open a GitLab issue: base OS reached EOL, bump major | Issue |
-| Atlassian security advisory feed | Renovate custom datasource bumps `VERSION` (+ `SHA256` via `postUpgradeTasks`) | MR, then rebuild |
+| Atlassian security advisory feed | Normally Iron Bank's development branch moves within days and the next sync picks it up; for an emergency, `scripts/pin-version.sh <product>/<line> <version>` in a hand-made MR | MR, then rebuild |
 
 ## The shared daemon
 
@@ -43,8 +44,14 @@ credentials.
 
 ## GitLab CI
 
-`.gitlab-ci.yml`, stages `lint, build, gate, sign, patch`. Two schedules set
-`JOB=rebuild` (weekly) and `JOB=patch` (daily). The matrix is `PRODUCT x LINE`
+`.gitlab-ci.yml`, stages `lint, sync, build, gate, sign, patch`. Two schedules
+set `JOB=rebuild` (weekly) and `JOB=patch` (daily). The `sync-ironbank` job
+runs on every rebuild pipeline: on the schedule it pulls each line's version
+and checksums from its Iron Bank upstream, passes the updated manifests to the
+later stages as artifacts (GitLab restores them over the checkout, so the
+rebuild is what Iron Bank is hardening right now) and opens a merge request
+with `GITLAB_SYNC_TOKEN`; on merge requests and pushes it only reports drift.
+The matrix is `PRODUCT x LINE`
 and each job works on `TARGET=$PRODUCT/$LINE` (the directory holding that
 line's `hardening_manifest.yaml`). The `build` job writes
 `out/<product>-<line>/build.env` (`TARGET`, `PRODUCT`, `LINE`, `TAG`,

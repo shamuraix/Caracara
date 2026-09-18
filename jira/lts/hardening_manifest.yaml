@@ -9,12 +9,24 @@
 # SEED VALUE: the patch version below was chosen offline; re-pin with
 # scripts/pin-version.sh <product>/lts <version> to the newest patch of the line.
 apiVersion: v1
+# Where the version and checksums come from: scripts/sync-ironbank.sh pulls this
+# project's hardening_manifest.yaml from its `development` branch on
+# repo1.dso.mil (through Artifactory's generic-repo1-remote) and rewrites
+# args.VERSION, tags and the PRODUCT resource below (plus tini/git when Iron
+# Bank pins them).  The weekly rebuild runs the sync first, so every build is
+# the version Iron Bank is currently hardening.
+upstream:
+  ironbank:
+    # Iron Bank Containers / Atlassian / Jira Data Center / jira-lts
+    project: dsop/atlassian/jira-data-center/jira-lts
+    ref: development
+    manifest: hardening_manifest.yaml
 name: atlassian/jira
 tags:
   - "11.3.11"
   - lts
 args:
-  # Renovate bumps VERSION (custom.atlassian datasource) and re-pins the tarball.
+  # VERSION comes from the Iron Bank upstream above (sync-ironbank.sh).
   VERSION: "11.3.11"
   # atlassian-jira-software for Jira Software, atlassian-servicedesk for JSM.
   ARTEFACT: atlassian-jira-software

@@ -6,15 +6,27 @@
 # (product tarball) and scripts/pin-resource.sh (everything else).
 # Atlassian ships security fixes for the latest Long Term Support line for two
 # years from its .0 release; support-windows.yaml carries the date.
-# Version tracks Iron Bank's LTS image for this product; re-pin with
-# scripts/pin-version.sh <product>/lts <version> as new patches ship.
+# Version tracks Iron Bank's LTS image for this product (sync-ironbank.sh);
+# scripts/pin-version.sh is the manual/emergency override.
 apiVersion: v1
+# Where the version and checksums come from: scripts/sync-ironbank.sh pulls this
+# project's hardening_manifest.yaml from its `development` branch on
+# repo1.dso.mil (through Artifactory's generic-repo1-remote) and rewrites
+# args.VERSION, tags and the PRODUCT resource below (plus tini/git when Iron
+# Bank pins them).  The weekly rebuild runs the sync first, so every build is
+# the version Iron Bank is currently hardening.
+upstream:
+  ironbank:
+    # Iron Bank Containers / Atlassian / Bitbucket Data Center / bitbucket-lts
+    project: dsop/atlassian/bitbucket-data-center/bitbucket-lts
+    ref: development
+    manifest: hardening_manifest.yaml
 name: atlassian/bitbucket
 tags:
   - "10.2.7"
   - lts
 args:
-  # Renovate bumps VERSION (custom.atlassian datasource) and re-pins the tarball.
+  # VERSION comes from the Iron Bank upstream above (sync-ironbank.sh).
   VERSION: "10.2.7"
   # Bitbucket tarball name (the download path is still software/stash).
   ARTEFACT: atlassian-bitbucket

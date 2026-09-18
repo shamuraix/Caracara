@@ -6,12 +6,19 @@
 #   weekly rebuild   cron "0 2 * * 0"   variable JOB=rebuild
 #   daily patch      cron "0 6 * * *"   variable JOB=patch
 # Required CI/CD variables (masked): ART_DOCKER_CONFIG (docker config.json for
-# Artifactory push/pull), GITLAB_ISSUE_TOKEN (optional, project token with api scope).
+# Artifactory push/pull), GITLAB_ISSUE_TOKEN (optional, project token with api
+# scope), GITLAB_SYNC_TOKEN (optional, api + write_repository: lets the sync
+# stage open a merge request with what it pulled from Iron Bank).
 # The runner mounts the buildkit-client-certs Secret at /certs
 # ([[runners.kubernetes.volumes.secret]] in k8s/gitlab-runner/values.yaml).
 #
 # The matrix is PRODUCT x LINE: every product is built on its LTS line and its
 # current feature (latest) line, each pinned in <product>/<line>/hardening_manifest.yaml.
+# Versions and checksums come from Iron Bank: the sync stage pulls each line's
+# upstream project manifest from its `development` branch before the rebuild,
+# hands the updated manifests to the build stage as artifacts (so the rebuild
+# is always what Iron Bank is hardening right now) and opens a merge request
+# so git catches up.
 # Per-target state travels between stages as out/<product>-<line>/build.env
 # (TAG, VERSION, DIGEST) rather than a dotenv report, so matrix jobs never
 # overwrite each other's variables.
@@ -36,7 +43,7 @@ default:
     - mkdir -p ~/.docker && echo "$ART_DOCKER_CONFIG" > ~/.docker/config.json  # masked CI variable
     - cd "$CI_PROJECT_DIR"
 
-stages: [lint, build, gate, sign, patch]
+stages: [lint, sync, build, gate, sign, patch]
 
 workflow:
   rules:
@@ -70,9 +77,27 @@ lint:
   script:
     - scripts/lint.sh
 
+# Pull versions/checksums from each line's Iron Bank upstream (development
+# branch).  On MRs and pushes it only reports drift; on the scheduled rebuild
+# the synced manifests become artifacts consumed by build/gate/sign and an MR
+# is opened.
+sync-ironbank:
+  stage: sync
+  extends: [.rebuild-rules]
+  script:
+    - if [ "$CI_PIPELINE_SOURCE" = "schedule" ] || [ "$CI_PIPELINE_SOURCE" = "web" ]; then
+        scripts/sync-ironbank.sh --all --open-mr;
+      else
+        scripts/sync-ironbank.sh --all --check || echo "manifests differ from Iron Bank development; the scheduled rebuild will sync them";
+      fi
+  artifacts:
+    paths: [jira/*/hardening_manifest.yaml, confluence/*/hardening_manifest.yaml, bitbucket/*/hardening_manifest.yaml]
+    expire_in: 1 week
+
 build:
   stage: build
   extends: [.product-matrix, .rebuild-rules]
+  needs: [sync-ironbank]
   script:
     - mkdir -p "$OUT_DIR"
     - scripts/build.sh "$TARGET" "$CI_PIPELINE_IID"

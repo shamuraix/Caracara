@@ -16,10 +16,20 @@ class GitLabCITests(unittest.TestCase):
         self.ci = yaml.safe_load((ROOT / ".gitlab-ci.yml").read_text())
 
     def test_stages_and_jobs(self):
-        self.assertEqual(self.ci["stages"], ["lint", "build", "gate", "sign", "patch"])
+        self.assertEqual(self.ci["stages"], ["lint", "sync", "build", "gate", "sign", "patch"])
         for job in ("lint", "build", "gate", "sign", "patch"):
             self.assertIn(job, self.ci)
             self.assertEqual(self.ci[job]["stage"], job)
+        self.assertEqual(self.ci["sync-ironbank"]["stage"], "sync")
+
+    def test_rebuild_syncs_from_ironbank_first(self):
+        self.assertEqual(self.ci["build"]["needs"], ["sync-ironbank"])
+        script = "\n".join(self.ci["sync-ironbank"]["script"])
+        self.assertIn("scripts/sync-ironbank.sh --all --open-mr", script)
+        paths = self.ci["sync-ironbank"]["artifacts"]["paths"]
+        for p in PRODUCTS:
+            self.assertIn(f"{p}/*/hardening_manifest.yaml", paths)
+        self.assertIn("stage('sync-ironbank')", (ROOT / "Jenkinsfile").read_text())
 
     def test_matrix_covers_all_products_and_lines(self):
         matrix = self.ci[".product-matrix"]["parallel"]["matrix"][0]
@@ -123,27 +133,19 @@ class RenovateTests(unittest.TestCase):
         self.assertTrue(self.cfg["dockerfile"]["pinDigests"])
         self.assertIn("docker:pinDigests", self.cfg["extends"])
 
-    def test_version_managers_and_post_upgrade(self):
+    def test_product_versions_come_from_ironbank_not_renovate(self):
+        # Iron Bank's development branch is the version source (scripts/sync-ironbank.sh);
+        # Renovate must not also bump args.VERSION or the two would fight.
+        self.assertNotIn("customDatasources", self.cfg)
+        text = json.dumps(self.cfg)
+        self.assertNotIn("custom.atlassian", text)
+        self.assertNotIn("pin-version.sh", text)
         managers = {m.get("depNameTemplate"): m for m in self.cfg["customManagers"] if "depNameTemplate" in m}
-        self.assertEqual(set(managers), {"jira-software", "confluence", "bitbucket", "git/git"})
-        for dep, product in (("jira-software", "jira"), ("confluence", "confluence"), ("bitbucket", "bitbucket")):
-            self.assertEqual(managers[dep]["managerFilePatterns"], [f"/^{product}/(lts|latest)/hardening_manifest\\.yaml$/"])
-        atl = [r for r in self.cfg["packageRules"] if r.get("matchDatasources") == ["custom.atlassian"]]
-        pin = [r for r in atl if "postUpgradeTasks" in r][0]
-        self.assertEqual(pin["postUpgradeTasks"]["commands"], ["scripts/pin-version.sh {{{packageFileDir}}} {{{newVersion}}}"])
-        by_file = {r["matchFileNames"][0]: r for r in atl if "matchFileNames" in r}
-        for product in PRODUCTS:
-            for line in ("lts", "latest"):
-                rule = by_file[f"{product}/{line}/**"]
-                pattern = re.compile(rule["allowedVersions"].strip("/"))
-                version = (ROOT / product / line / "hardening_manifest.yaml").read_text()
-                import yaml as _y
-                current = _y.safe_load(version)["args"]["VERSION"]
-                self.assertRegex(current, pattern, f"{product}/{line}: pinned version must satisfy its own allowedVersions")
+        self.assertEqual(set(managers), {"git/git"})
         resource_rule = [r for r in self.cfg["packageRules"] if "github-releases" in r.get("matchDatasources", [])][0]
         self.assertEqual(resource_rule["postUpgradeTasks"]["commands"], ["scripts/pin-resource.sh {{{packageFileDir}}} --all"])
         manifest_managers = [m for m in self.cfg["customManagers"] if "hardening_manifest" in m["managerFilePatterns"][0]]
-        self.assertGreaterEqual(len(manifest_managers), 5)
+        self.assertGreaterEqual(len(manifest_managers), 2)
 
 
 class ManifestTests(unittest.TestCase):

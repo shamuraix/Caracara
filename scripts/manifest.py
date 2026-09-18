@@ -42,6 +42,7 @@ DEFAULT_MIRRORS = {
     "mirrors.edge.kernel.org": "{art}/artifactory/generic-kernel-remote",
     "www.kernel.org": "{art}/artifactory/generic-kernel-remote",
     "cdn.kernel.org": "{art}/artifactory/generic-kernel-remote",
+    "repo1.dso.mil": "{art}/artifactory/generic-repo1-remote",
 }
 
 
@@ -153,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "check":
         missing = unpinned(doc)
         if missing:
-            print(f"{path}: unpinned resources (run scripts/pin-resource.sh {Path(a.dir).name} {' '.join(missing)}):")
+            print(f"{path}: unpinned resources (run scripts/pin-resource.sh {str(a.dir).rstrip('/')} {' '.join(missing)}):")
             for m in missing:
                 print(f"  - {m}")
             return 1

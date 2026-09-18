@@ -8,6 +8,7 @@
 //   cosign-private-key   secret file        -> COSIGN_KEY (no OIDC identity on Jenkins)
 //   cosign-password      secret text        -> COSIGN_PASSWORD (may be empty, must exist)
 //   gitlab-issue-token   secret text        -> GITLAB_ISSUE_TOKEN (may be empty, must exist)
+//   gitlab-sync-token    secret text        -> GITLAB_SYNC_TOKEN (api + write_repository; opens the Iron Bank sync MR)
 pipeline {
   agent {
     kubernetes {
@@ -54,8 +55,12 @@ spec:
     COSIGN_KEY              = credentials('cosign-private-key')   // file credential
     COSIGN_PASSWORD         = credentials('cosign-password')
     GITLAB_ISSUE_TOKEN      = credentials('gitlab-issue-token')
+    GITLAB_SYNC_TOKEN       = credentials('gitlab-sync-token')
     CI_API_V4_URL           = 'https://gitlab.example.com/api/v4'
     CI_PROJECT_ID           = 'platform%2Fatlassian-images'
+    CI_SERVER_HOST          = 'gitlab.example.com'
+    CI_PROJECT_PATH         = 'platform/atlassian-images'
+    CI_DEFAULT_BRANCH       = 'main'
   }
   stages {
     stage('login') {
@@ -65,6 +70,12 @@ spec:
     }
     stage('lint') {
       steps { sh 'scripts/lint.sh' }
+    }
+    // Pull each line's version and checksums from its Iron Bank upstream
+    // project (development branch) so this rebuild is what Iron Bank is
+    // hardening now; the MR brings git up to date.
+    stage('sync-ironbank') {
+      steps { sh 'scripts/sync-ironbank.sh --all --open-mr; git checkout -q -- . 2>/dev/null || true' }
     }
     stage('build+gate+sign') {
       matrix {

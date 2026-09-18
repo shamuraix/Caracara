@@ -22,10 +22,12 @@ vulnerabilities, is published on
 and the [Data Center bug-fix policy](https://confluence.atlassian.com/support/atlassian-data-center-bug-fix-policy-1218548716.html).
 Subscribe to the advisory feed and to the
 [Red Hat product life cycle page](https://access.redhat.com/product-life-cycles)
-for base-OS EOL; wire both into the same Renovate or ticket flow that bumps
-`VERSION`. Renovate's `custom.atlassian` datasource (Marketplace versions API)
-opens the MR for every new patch release on the pinned line; the emergency
-path is `scripts/pin-version.sh <product> <version>` in a hand-made MR.
+for base-OS EOL. Product versions follow Iron Bank: the weekly rebuild's
+`sync-ironbank` stage pulls each line's version from its Iron Bank upstream
+project's `development` branch, which normally moves within days of an
+advisory. The emergency path, when you cannot wait for Iron Bank, is
+`scripts/pin-version.sh <product>/<line> <version>` in a hand-made MR; the
+next sync overwrites it once Iron Bank has caught up.
 
 ## Version support windows are the real EOL clock
 
@@ -37,14 +39,13 @@ ever arrive, however often you rebuild. `support-windows.yaml` tracks each
 line's end date next to the base-OS date, and `scripts/eol_check.py` fails the
 lint stage 30 days before any of them (warns at 90).
 
-- **lts**: two years from the line's .0 release. When a new LTS line ships
-  (yearly), edit the line's `allowedVersions` in `renovate.json` and its entry
-  in `support-windows.yaml`, then `scripts/pin-version.sh <product>/lts <version>`.
-  The old LTS stays supported for its remaining window, so the switch can be
-  scheduled rather than rushed.
+- **lts**: two years from the line's .0 release. When Iron Bank moves its
+  `<product>-lts` project to a new LTS line, the sync follows; update the
+  line's entry in `support-windows.yaml` at that point. The old LTS stays
+  supported for its remaining window, so the switch is not a fire drill.
 - **latest**: only until the next feature release plus the bug-fix window.
-  Renovate follows every release of the major, so this line moves roughly
-  monthly; `support_ends` for it is short-lived and mostly informational.
+  The line moves whenever Iron Bank's non-LTS project does, roughly monthly;
+  `support_ends` for it is short-lived and mostly informational.
 
 ## Iron Bank as a second opinion
 
