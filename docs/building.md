@@ -7,14 +7,17 @@ SBOM/provenance attestations at build time.
 
 ## The hardening manifest: resources pinned by URL and sha256
 
-Each image directory carries a `hardening_manifest.yaml` in Iron Bank's
-format. Its `resources:` section is the single source of truth for everything
-that enters the image from outside the UBI repos:
+Each product is built on two lines, `<product>/lts/` (Long Term Support) and
+`<product>/latest/` (current feature release), and each line directory
+carries its own `hardening_manifest.yaml` in Iron Bank's format; the
+Dockerfile in the product directory serves both. A manifest's `resources:`
+section is the single source of truth for everything that enters the image
+from outside the UBI repos:
 
 | Image | Resources | How it is used |
 |---|---|---|
-| jira, confluence, bitbucket | `PRODUCT` (Atlassian tarball), `TINI_AMD64`, `TINI_ARM64` (upstream release binaries) | tarball extracted to the install dir; tini installed as `/usr/bin/tini` |
-| bitbucket | `GIT` (kernel.org source tarball) | compiled in the `git-builder` stage and copied to `/opt/git`, as Iron Bank does, so the git version Bitbucket hosts with is chosen here and not by the UBI repo |
+| `<product>/lts`, `<product>/latest` | `PRODUCT` (Atlassian tarball), `TINI_AMD64`, `TINI_ARM64` (upstream release binaries) | tarball extracted to the install dir; tini installed as `/usr/bin/tini` |
+| `bitbucket/lts`, `bitbucket/latest` | `GIT` (kernel.org source tarball) | compiled in the `git-builder` stage and copied to `/opt/git`, as Iron Bank does, so the git version Bitbucket hosts with is chosen here and not by the UBI repo |
 | ci-tools | `COPA_*`, `CRANE_*` (GitHub release tarballs per arch) | extracted in per-arch fetch stages |
 
 ```yaml
@@ -25,7 +28,7 @@ resources:
     validation: { type: sha256, value: 93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c }
 ```
 
-`scripts/build.sh` turns `args:` and every resource into build args
+`scripts/build.sh <product>/<line>` turns `args:` and every resource into build args
 (`<ARG>_URL`, `<ARG>_SHA256`), rewriting upstream hosts to the Artifactory
 generic remotes (`scripts/manifest.py`, `RESOURCE_MIRRORS` to override the
 map). The Dockerfiles declare those args **without defaults** and fetch each
@@ -36,9 +39,11 @@ per arch and `FROM tini-${TARGETARCH}` to select.
 
 Pinning:
 
-- `scripts/pin-version.sh <product> <version>` sets `args.VERSION` and
-  `tags[0]`, points `PRODUCT` at the new tarball and stores the sha256 from
-  Atlassian's published `.sha256` file (no tarball download).
+- `scripts/pin-version.sh <product>/<line> <version>` sets `args.VERSION` and
+  `tags` (`[version, line]`), points `PRODUCT` at the new tarball and stores
+  the sha256 from Atlassian's published `.sha256` file (no tarball download).
+  Each line's `args` can differ: `JAVA_PACKAGE` is 17 on the 9.x LTS lines and
+  21 on the 10.x/11.x lines.
 - `scripts/pin-resource.sh <dir> <ARG>... | --all` downloads each resource
   through Artifactory, computes its sha256, cross-checks it against the
   upstream's sidecar checksum (`.sha256`, `.sha256sum`, kernel.org's
@@ -101,13 +106,13 @@ All seen in the Iron Bank Dockerfile history:
 
 ## Invocation
 
-`scripts/build.sh <product>` runs, against the shared daemon:
+`scripts/build.sh <product>/<line>` runs, against the shared daemon:
 
 ```sh
 buildctl --tlscacert /certs/ca.pem --tlscert /certs/cert.pem --tlskey /certs/key.pem \
   build --frontend dockerfile.v0 \
   --local context=. --local dockerfile=jira \
-  --opt build-arg:ART=$ART $(scripts/manifest.py build-args jira --art $ART) \
+  --opt build-arg:ART=$ART $(scripts/manifest.py build-args jira/lts --art $ART) \
   --opt platform=linux/amd64,linux/arm64 \
   --opt attest:sbom= --opt attest:provenance=mode=max \
   --import-cache type=registry,ref=$REPO/cache/jira \
@@ -135,5 +140,5 @@ Point `BUILDKIT_HOST` at a local rootless daemon and unset the cert path:
 
 ```sh
 export BUILDKIT_HOST=tcp://127.0.0.1:1234 BUILDKIT_CERTS=/nonexistent ART=artifactory.example.com
-make build PRODUCT=jira
+make build PRODUCT=jira LINE=lts
 ```

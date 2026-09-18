@@ -49,7 +49,9 @@ flowchart LR
 ## Repository layout
 
 ```
-jira/ confluence/ bitbucket/   Dockerfile, hardening_manifest.yaml (version + every external resource pinned by URL and sha256), entrypoint.py, config/*.j2
+jira/ confluence/ bitbucket/   Dockerfile (shared by both lines), entrypoint.py, config/*.j2
+  <product>/lts/               hardening_manifest.yaml for the Long Term Support line (version + every external resource pinned by URL and sha256)
+  <product>/latest/            hardening_manifest.yaml for the current feature (non-LTS) line
 shared/                        entrypoint_helpers.py, shutdown-wait.sh, support/ (thread and heap dumps)
 ci-tools/                      the single job image: buildctl, trivy, copa, cosign, crane, jq, python3 (+ its own hardening_manifest.yaml)
 scripts/                       build, gate, patch, sign, manifest.py, pin-version, pin-resource, pin-base, gen-buildkit-certs, checks, lint
@@ -75,12 +77,15 @@ renovate.json                  digest pinning, Atlassian custom datasource, post
 3. **ci-tools image**: build `ci-tools/Dockerfile` once by hand (it is the
    bootstrap image) and push it to `docker-atlassian-local/ci-tools`.
 4. **Pin resources**: `make manifest-check` lists what is unpinned.
-   `scripts/pin-version.sh jira 11.3.11` (and confluence, bitbucket) pins the
-   product tarball from Atlassian's published checksum;
-   `scripts/pin-resource.sh bitbucket GIT` and `scripts/pin-resource.sh ci-tools --all`
-   download and pin git, copa and crane. The build refuses to run while any
-   resource in a `hardening_manifest.yaml` has no sha256. Then
-   `scripts/pin-base.sh jira` (or let Renovate do it on its first run).
+   `scripts/pin-version.sh jira/lts 11.3.11` and `scripts/pin-version.sh jira/latest <current feature release>`
+   (and the same for confluence and bitbucket) pin each line's product tarball
+   from Atlassian's published checksum. The `latest` manifests ship with seed
+   versions chosen offline; pin them to the real current feature release.
+   `scripts/pin-resource.sh bitbucket/lts GIT` (and `bitbucket/latest`) and
+   `scripts/pin-resource.sh ci-tools --all` download and pin git, copa and
+   crane. The build refuses to run while any resource in a
+   `hardening_manifest.yaml` has no sha256. Then `scripts/pin-base.sh jira`
+   (or let Renovate do it on its first run).
 5. **CI**: GitLab: set the masked variable `ART_DOCKER_CONFIG` (docker
    `config.json` for Artifactory), create the two pipeline schedules
    (`JOB=rebuild` weekly, `JOB=patch` daily). Jenkins: create the credentials
@@ -102,6 +107,24 @@ Full setup and recurring checklists: [docs/policy-and-ops.md](docs/policy-and-op
 - [Pipeline](docs/pipeline.md): triggers, the shared daemon, GitLab CI and Jenkins.
 - [What Copa can't fix](docs/what-copa-cant-fix.md): Java layer, product advisories, version support windows, SLAs.
 - [Policy gates and ops checklist](docs/policy-and-ops.md): Kyverno, setup and recurring tasks, sources.
+
+## Lines and tags
+
+Atlassian only ships security fixes for the **current feature release** and
+the **latest Long Term Support (LTS)** line, so every product is built on
+both, from `<product>/lts/` and `<product>/latest/`. The CI matrix is
+`PRODUCT x LINE` (six images per run). Tags in `docker-atlassian-local`:
+
+| Tag | Mutable | Meaning |
+|---|---|---|
+| `jira:11.3.11-<pipeline>` | no | one rebuild of the pinned version |
+| `jira:11.3.11` | yes | latest signed digest for that version (rebuild or daily patch) |
+| `jira:lts`, `jira:latest` | yes | the line tags; deploy from these and let admission enforce freshness |
+
+Renovate keeps `lts` on patch releases of its pinned line and `latest` on
+every release of its major (`renovate.json`); moving `lts` to a new LTS line
+is a deliberate change (edit `allowedVersions`, `support-windows.yaml`, then
+`scripts/pin-version.sh <product>/lts <version>`).
 
 ## Running the images
 

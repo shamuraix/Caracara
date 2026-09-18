@@ -1,13 +1,18 @@
-# Iron Bank-style hardening manifest: the single source of truth for what
-# enters this image from outside the UBI repos.  scripts/build.sh turns
-# `args` and `resources` into build args; the Dockerfile verifies every
-# resource with ADD --checksum.  Pin or re-pin checksums with
-# scripts/pin-version.sh (product) and scripts/pin-resource.sh (everything else).
+# Iron Bank-style hardening manifest for the LTS line of this product.
+# The single source of truth for what enters the image from outside the UBI
+# repos: scripts/build.sh turns `args` and `resources` into build args and the
+# Dockerfile (../Dockerfile, shared by both lines) verifies every resource with
+# ADD --checksum.  Pin with scripts/pin-version.sh <product>/<line> <version>
+# (product tarball) and scripts/pin-resource.sh (everything else).
+# Atlassian ships security fixes for the latest Long Term Support line for two
+# years from its .0 release; support-windows.yaml carries the date.
+# SEED VALUE: the patch version below was chosen offline; re-pin with
+# scripts/pin-version.sh <product>/lts <version> to the newest patch of the line.
 apiVersion: v1
 name: atlassian/bitbucket
 tags:
   - "9.4.5"
-  - latest
+  - lts
 args:
   # Renovate bumps VERSION (custom.atlassian datasource) and re-pins the tarball.
   VERSION: "9.4.5"
@@ -21,7 +26,7 @@ labels:
   org.opencontainers.image.vendor: Atlassian (product); platform team (image)
   io.caracara.product: bitbucket
 resources:
-  # Product tarball.  sha256 from product-downloads' .sha256 file (scripts/pin-version.sh bitbucket <version>).
+  # Product tarball.  sha256 from product-downloads' .sha256 file (scripts/pin-version.sh bitbucket/lts <version>).
   - arg: PRODUCT
     filename: atlassian-bitbucket-9.4.5.tar.gz
     url: https://product-downloads.atlassian.com/software/stash/downloads/atlassian-bitbucket-9.4.5.tar.gz

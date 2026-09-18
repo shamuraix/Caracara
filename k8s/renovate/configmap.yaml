@@ -17,8 +17,8 @@ data:
       // postUpgradeTasks run scripts/pin-version.sh inside the Renovate pod;
       // both are allow-listed explicitly.
       allowedCommands: [
-        "^scripts/pin-version\\.sh (jira|confluence|bitbucket) [0-9.]+$",
-        "^scripts/pin-resource\\.sh (jira|confluence|bitbucket|ci-tools) --all$",
+        "^scripts/pin-version\\.sh (jira|confluence|bitbucket)/(lts|latest) [0-9.]+$",
+        "^scripts/pin-resource\\.sh ((jira|confluence|bitbucket)/(lts|latest)|ci-tools) --all$",
       ],
       allowScripts: false,
       // Everything the datasources touch goes through Artifactory.

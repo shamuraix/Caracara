@@ -10,8 +10,10 @@
 # The runner mounts the buildkit-client-certs Secret at /certs
 # ([[runners.kubernetes.volumes.secret]] in k8s/gitlab-runner/values.yaml).
 #
-# Per-product state travels between stages as out/<product>/build.env (TAG,
-# VERSION, DIGEST) rather than a dotenv report, so the three matrix jobs never
+# The matrix is PRODUCT x LINE: every product is built on its LTS line and its
+# current feature (latest) line, each pinned in <product>/<line>/hardening_manifest.yaml.
+# Per-target state travels between stages as out/<product>-<line>/build.env
+# (TAG, VERSION, DIGEST) rather than a dotenv report, so matrix jobs never
 # overwrite each other's variables.
 
 variables:
@@ -47,8 +49,10 @@ workflow:
   parallel:
     matrix:
       - PRODUCT: [jira, confluence, bitbucket]
+        LINE: [lts, latest]
   variables:
-    OUT_DIR: out/$PRODUCT
+    TARGET: $PRODUCT/$LINE
+    OUT_DIR: out/$PRODUCT-$LINE
 
 .rebuild-rules:
   rules:
@@ -71,7 +75,7 @@ build:
   extends: [.product-matrix, .rebuild-rules]
   script:
     - mkdir -p "$OUT_DIR"
-    - scripts/build.sh "$PRODUCT" "$CI_PIPELINE_IID"
+    - scripts/build.sh "$TARGET" "$CI_PIPELINE_IID"
   artifacts:
     paths: [out/]
     expire_in: 1 month
@@ -100,10 +104,10 @@ sign:
     SIGSTORE_ID_TOKEN: { aud: sigstore }  # keyless signing via GitLab OIDC
   script:
     - set -a && . "$OUT_DIR/build.env" && set +a
-    - scripts/sign.sh "${TAG%%:*}@$DIGEST" "$VERSION" "$OUT_DIR/vuln.json" "$OUT_DIR/sbom.cdx.json"
+    - EXTRA_TAGS="$LINE" scripts/sign.sh "${TAG%%:*}@$DIGEST" "$VERSION" "$OUT_DIR/vuln.json" "$OUT_DIR/sbom.cdx.json"
 
-# Daily fast path: scan every live version tag, copa-patch what is fixable,
-# re-gate, move the tag, sign.  Independent of the rebuild matrix on purpose.
+# Daily fast path: scan every live line (its pinned version tag), copa-patch
+# what is fixable, re-gate, move the version and line tags, sign.
 patch:
   stage: patch
   extends: [.product-matrix]
@@ -114,7 +118,7 @@ patch:
     SIGSTORE_ID_TOKEN: { aud: sigstore }
   script:
     - mkdir -p "$OUT_DIR"
-    - scripts/patch.sh "$PRODUCT:$(python3 scripts/manifest.py version "$PRODUCT")"
+    - scripts/patch.sh "$TARGET"
   artifacts:
     when: always
     paths: [out/]

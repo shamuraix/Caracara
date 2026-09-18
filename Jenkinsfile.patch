@@ -1,4 +1,4 @@
-// Daily Copa fast path: scan every live version tag, patch fixable OS CVEs on
+// Daily Copa fast path: scan every live line (LTS and latest), patch fixable OS CVEs on
 // the shared buildkitd, re-gate, move the tag, sign.  Same agent pod and
 // credentials as Jenkinsfile; separate job so its cron and matrix are
 // independent of the weekly rebuild.
@@ -54,14 +54,17 @@ spec:
     }
     stage('patch') {
       matrix {
-        axes { axis { name 'PRODUCT'; values 'jira', 'confluence', 'bitbucket' } }
+        axes {
+          axis { name 'PRODUCT'; values 'jira', 'confluence', 'bitbucket' }
+          axis { name 'LINE'; values 'lts', 'latest' }
+        }
         stages {
           stage('product') {
             steps {
               sh '''#!/usr/bin/env bash
                 set -euo pipefail
-                export OUT_DIR="out/${PRODUCT}"; mkdir -p "${OUT_DIR}"
-                scripts/patch.sh "${PRODUCT}:$(python3 scripts/manifest.py version "${PRODUCT}")"
+                export OUT_DIR="out/${PRODUCT}-${LINE}"; mkdir -p "${OUT_DIR}"
+                scripts/patch.sh "${PRODUCT}/${LINE}"
               '''
             }
           }

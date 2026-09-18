@@ -1,4 +1,4 @@
-// Weekly rebuild + gate + sign for all products (Jenkins kubernetes plugin).
+// Weekly rebuild + gate + sign for every product line, LTS and latest (Jenkins kubernetes plugin).
 // The agent pod is the same ci-tools image the GitLab pipeline uses, with the
 // buildkit-client-certs Secret mounted at /certs.  A second job
 // (Jenkinsfile.patch) runs the daily Copa fast path with its own cron.
@@ -68,17 +68,20 @@ spec:
     }
     stage('build+gate+sign') {
       matrix {
-        axes { axis { name 'PRODUCT'; values 'jira', 'confluence', 'bitbucket' } }
+        axes {
+          axis { name 'PRODUCT'; values 'jira', 'confluence', 'bitbucket' }
+          axis { name 'LINE'; values 'lts', 'latest' }
+        }
         stages {
           stage('product') {
             steps {
               sh '''#!/usr/bin/env bash
                 set -euo pipefail
-                export OUT_DIR="out/${PRODUCT}"; mkdir -p "${OUT_DIR}"
-                scripts/build.sh "${PRODUCT}" "${BUILD_NUMBER}"
+                export OUT_DIR="out/${PRODUCT}-${LINE}"; mkdir -p "${OUT_DIR}"
+                scripts/build.sh "${PRODUCT}/${LINE}" "${BUILD_NUMBER}"
                 set -a; . "${OUT_DIR}/build.env"; set +a
                 scripts/gate.sh "${TAG}"
-                scripts/sign.sh "${TAG%%:*}@${DIGEST}" "${VERSION}"
+                EXTRA_TAGS="${LINE}" scripts/sign.sh "${TAG%%:*}@${DIGEST}" "${VERSION}" "${OUT_DIR}/vuln.json" "${OUT_DIR}/sbom.cdx.json"
               '''
             }
           }

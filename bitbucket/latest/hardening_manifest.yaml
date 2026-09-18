@@ -1,0 +1,66 @@
+# Iron Bank-style hardening manifest for the LATEST (current feature release,
+# non-LTS) line of this product.  The single source of truth for what enters
+# the image from outside the UBI repos: scripts/build.sh turns `args` and
+# `resources` into build args and the Dockerfile (../Dockerfile, shared by both
+# lines) verifies every resource with ADD --checksum.  Pin with
+# scripts/pin-version.sh <product>/latest <version> (product tarball) and
+# scripts/pin-resource.sh (everything else).
+# Feature releases are supported only until the next feature release plus the
+# bug-fix window, so this line moves often; Renovate follows the newest release
+# of the major in renovate.json.
+# SEED VALUE: the version below is a placeholder chosen offline; run
+# scripts/pin-version.sh <product>/latest <version> with the current feature
+# release (it validates the version exists by fetching Atlassian's .sha256).
+apiVersion: v1
+name: atlassian/bitbucket
+tags:
+  - "10.1.0"
+  - latest
+args:
+  # Renovate bumps VERSION (custom.atlassian datasource) and re-pins the tarball.
+  VERSION: "10.1.0"
+  # Bitbucket tarball name (the download path is still software/stash).
+  ARTEFACT: atlassian-bitbucket
+  # Bitbucket 10.x runs on Java 21; the JDK is an RPM so Copa can patch it.
+  JAVA_PACKAGE: java-21-openjdk-headless
+labels:
+  org.opencontainers.image.title: Atlassian Bitbucket Data Center
+  org.opencontainers.image.description: Bitbucket Data Center on UBI 9 minimal
+  org.opencontainers.image.vendor: Atlassian (product); platform team (image)
+  io.caracara.product: bitbucket
+resources:
+  # Product tarball.  sha256 from product-downloads' .sha256 file (scripts/pin-version.sh bitbucket/latest <version>).
+  - arg: PRODUCT
+    filename: atlassian-bitbucket-10.1.0.tar.gz
+    url: https://product-downloads.atlassian.com/software/stash/downloads/atlassian-bitbucket-10.1.0.tar.gz
+    validation:
+      type: sha256
+      value: ""
+  # tini: PID 1 for signal forwarding and zombie reaping.  Installed as the
+  # upstream release binary (glibc build; UBI minimal has glibc), one per arch.
+  # renovate: datasource=github-releases depName=krallin/tini
+  - arg: TINI_AMD64
+    filename: tini-amd64
+    url: https://github.com/krallin/tini/releases/download/v0.19.0/tini-amd64
+    validation:
+      type: sha256
+      value: 93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c
+  - arg: TINI_ARM64
+    filename: tini-arm64
+    url: https://github.com/krallin/tini/releases/download/v0.19.0/tini-arm64
+    validation:
+      type: sha256
+      value: 07952557df20bfd2a95f9bef198b445e006171969499a1d361bd9e6f8e5e0e81
+  # git, built from source in the Dockerfile's git-builder stage (as Iron Bank
+  # does for Bitbucket) so the version is pinned here rather than by whatever
+  # the UBI repo ships.  Not an RPM, so Copa cannot patch it: bump this entry.
+  # renovate: datasource=github-tags depName=git/git
+  - arg: GIT
+    filename: git-2.47.1.tar.xz
+    url: https://mirrors.edge.kernel.org/pub/software/scm/git/git-2.47.1.tar.xz
+    validation:
+      type: sha256
+      value: ""
+maintainers:
+  - name: Platform team
+    email: platform@example.com

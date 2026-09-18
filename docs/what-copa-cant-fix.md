@@ -30,12 +30,21 @@ path is `scripts/pin-version.sh <product> <version>` in a hand-made MR.
 ## Version support windows are the real EOL clock
 
 Atlassian only ships security fixes for the current feature release and the
-latest Long Term Support (LTS) line. Running an image on a Jira line that has
-left support is the same failure as running on UBI 8: no fix will ever arrive,
-however often you rebuild. `support-windows.yaml` tracks each product's LTS
-end date next to the base-OS date, and `scripts/eol_check.py` fails the lint
-stage 30 days before any of them (warns at 90). Update the file, and the
-`allowedVersions` rule in `renovate.json`, when moving to a new line.
+latest Long Term Support (LTS) line, which is why every product is built on
+both (`<product>/lts`, `<product>/latest`). Running an image on a Jira line
+that has left support is the same failure as running on UBI 8: no fix will
+ever arrive, however often you rebuild. `support-windows.yaml` tracks each
+line's end date next to the base-OS date, and `scripts/eol_check.py` fails the
+lint stage 30 days before any of them (warns at 90).
+
+- **lts**: two years from the line's .0 release. When a new LTS line ships
+  (yearly), edit the line's `allowedVersions` in `renovate.json` and its entry
+  in `support-windows.yaml`, then `scripts/pin-version.sh <product>/lts <version>`.
+  The old LTS stays supported for its remaining window, so the switch can be
+  scheduled rather than rushed.
+- **latest**: only until the next feature release plus the bug-fix window.
+  Renovate follows every release of the major, so this line moves roughly
+  monthly; `support_ends` for it is short-lived and mostly informational.
 
 ## Iron Bank as a second opinion
 

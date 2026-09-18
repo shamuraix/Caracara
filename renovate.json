@@ -38,9 +38,9 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "jira/hardening_manifest.yaml args.VERSION -> Atlassian Marketplace",
+      "description": "jira/<lts|latest>/hardening_manifest.yaml args.VERSION -> Atlassian Marketplace",
       "managerFilePatterns": [
-        "/^jira/hardening_manifest\\.yaml$/"
+        "/^jira/(lts|latest)/hardening_manifest\\.yaml$/"
       ],
       "matchStrings": [
         "\\n  VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
@@ -51,9 +51,9 @@
     },
     {
       "customType": "regex",
-      "description": "confluence/hardening_manifest.yaml args.VERSION -> Atlassian Marketplace",
+      "description": "confluence/<lts|latest>/hardening_manifest.yaml args.VERSION -> Atlassian Marketplace",
       "managerFilePatterns": [
-        "/^confluence/hardening_manifest\\.yaml$/"
+        "/^confluence/(lts|latest)/hardening_manifest\\.yaml$/"
       ],
       "matchStrings": [
         "\\n  VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
@@ -64,9 +64,9 @@
     },
     {
       "customType": "regex",
-      "description": "bitbucket/hardening_manifest.yaml args.VERSION -> Atlassian Marketplace",
+      "description": "bitbucket/<lts|latest>/hardening_manifest.yaml args.VERSION -> Atlassian Marketplace",
       "managerFilePatterns": [
-        "/^bitbucket/hardening_manifest\\.yaml$/"
+        "/^bitbucket/(lts|latest)/hardening_manifest\\.yaml$/"
       ],
       "matchStrings": [
         "\\n  VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
@@ -89,9 +89,9 @@
     },
     {
       "customType": "regex",
-      "description": "git source tarball in bitbucket/hardening_manifest.yaml (version is in the filename, not a path segment)",
+      "description": "git source tarball in bitbucket/<line>/hardening_manifest.yaml (version is in the filename, not a path segment)",
       "managerFilePatterns": [
-        "/^bitbucket/hardening_manifest\\.yaml$/"
+        "/^bitbucket/(lts|latest)/hardening_manifest\\.yaml$/"
       ],
       "matchStrings": [
         "url:\\s*https://mirrors\\.edge\\.kernel\\.org/pub/software/scm/git/git-(?<currentValue>\\d+\\.\\d+\\.\\d+)\\.tar\\.xz"
@@ -115,74 +115,85 @@
   ],
   "packageRules": [
     {
-      "description": "Atlassian version bumps: stay on the pinned line; a new feature/LTS line is a deliberate change (edit allowedVersions + support-windows.yaml)",
+      "description": "Atlassian bumps: pin-version.sh (re)pins the tarball checksum in the same MR; {{packageFileDir}} is <product>/<line>",
       "matchDatasources": [
         "custom.atlassian"
       ],
-      "matchDepNames": [
-        "jira-software"
+      "postUpgradeTasks": {
+        "commands": [
+          "scripts/pin-version.sh {{{packageFileDir}}} {{{newVersion}}}"
+        ],
+        "fileFilters": [
+          "**/hardening_manifest.yaml"
+        ],
+        "executionMode": "update"
+      },
+      "labels": [
+        "renovate",
+        "atlassian-release"
+      ]
+    },
+    {
+      "description": "LTS lines follow patch releases of their pinned line only; a new LTS line is a deliberate change (edit allowedVersions + support-windows.yaml, then re-pin <product>/lts)",
+      "matchDatasources": [
+        "custom.atlassian"
+      ],
+      "matchFileNames": [
+        "jira/lts/**"
       ],
       "allowedVersions": "/^11\\.3\\./",
-      "postUpgradeTasks": {
-        "commands": [
-          "scripts/pin-version.sh jira {{{newVersion}}}"
-        ],
-        "fileFilters": [
-          "jira/hardening_manifest.yaml"
-        ],
-        "executionMode": "update"
-      },
-      "commitMessageTopic": "Jira",
-      "labels": [
-        "renovate",
-        "atlassian-release"
-      ]
+      "commitMessageTopic": "Jira LTS"
     },
     {
       "matchDatasources": [
         "custom.atlassian"
       ],
-      "matchDepNames": [
-        "confluence"
+      "matchFileNames": [
+        "confluence/lts/**"
       ],
       "allowedVersions": "/^9\\.2\\./",
-      "postUpgradeTasks": {
-        "commands": [
-          "scripts/pin-version.sh confluence {{{newVersion}}}"
-        ],
-        "fileFilters": [
-          "confluence/hardening_manifest.yaml"
-        ],
-        "executionMode": "update"
-      },
-      "commitMessageTopic": "Confluence",
-      "labels": [
-        "renovate",
-        "atlassian-release"
-      ]
+      "commitMessageTopic": "Confluence LTS"
     },
     {
       "matchDatasources": [
         "custom.atlassian"
       ],
-      "matchDepNames": [
-        "bitbucket"
+      "matchFileNames": [
+        "bitbucket/lts/**"
       ],
       "allowedVersions": "/^9\\.4\\./",
-      "postUpgradeTasks": {
-        "commands": [
-          "scripts/pin-version.sh bitbucket {{{newVersion}}}"
-        ],
-        "fileFilters": [
-          "bitbucket/hardening_manifest.yaml"
-        ],
-        "executionMode": "update"
-      },
-      "commitMessageTopic": "Bitbucket",
-      "labels": [
-        "renovate",
-        "atlassian-release"
-      ]
+      "commitMessageTopic": "Bitbucket LTS"
+    },
+    {
+      "description": "latest lines follow every feature and patch release of the current major; a major bump (new Java, new base assumptions) is a deliberate change",
+      "matchDatasources": [
+        "custom.atlassian"
+      ],
+      "matchFileNames": [
+        "jira/latest/**"
+      ],
+      "allowedVersions": "/^11\\./",
+      "commitMessageTopic": "Jira latest"
+    },
+    {
+      "matchDatasources": [
+        "custom.atlassian"
+      ],
+      "matchFileNames": [
+        "confluence/latest/**"
+      ],
+      "allowedVersions": "/^10\\./",
+      "commitMessageTopic": "Confluence latest"
+    },
+    {
+      "matchDatasources": [
+        "custom.atlassian"
+      ],
+      "matchFileNames": [
+        "bitbucket/latest/**"
+      ],
+      "allowedVersions": "/^10\\./",
+      "commitMessageTopic": "Bitbucket latest"
     },
     {
       "description": "Resource bumps (tini, git, copa, crane): Renovate rewrites the URL, then pin-resource.sh downloads through Artifactory and stores the new sha256 in the same MR",
