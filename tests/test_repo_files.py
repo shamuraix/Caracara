@@ -60,12 +60,28 @@ class DockerfileTests(unittest.TestCase):
 
     def test_checksum_verified_add(self):
         for p in PRODUCTS:
-            self.assertIn("ADD --checksum=sha256:${SHA256}", self.read(p))
+            self.assertIn("ADD --checksum=sha256:${PRODUCT_SHA256} ${PRODUCT_URL}", self.read(p))
 
-    def test_version_matches_version_file(self):
+    def test_no_unpinned_defaults_for_resources(self):
+        # URLs and checksums come from the manifest; the Dockerfile must not carry its own copies.
+        for p in PRODUCTS + ("ci-tools",):
+            for line in self.code(p).splitlines():
+                if line.startswith("ARG ") and ("_URL" in line or "_SHA256" in line):
+                    self.assertNotIn("=", line, f"{p}: {line}")
+
+    def test_tini_from_manifest_resource(self):
         for p in PRODUCTS:
-            version = (ROOT / p / "VERSION").read_text().strip()
-            self.assertIn(f"ARG VERSION={version}\n", self.read(p), p)
+            text = self.code(p)
+            self.assertIn("FROM tini-${TARGETARCH} AS tini", text)
+            self.assertIn("COPY --from=tini /tini /usr/bin/tini", text)
+            self.assertNotRegex(text, r"microdnf -y install[^\n]*\btini\b", p)
+
+    def test_bitbucket_builds_git_from_source(self):
+        text = self.code("bitbucket")
+        self.assertIn("AS git-builder", text)
+        self.assertIn("ADD --checksum=sha256:${GIT_SHA256} ${GIT_URL}", text)
+        self.assertIn("COPY --from=git-builder /opt/git /opt/git", text)
+        self.assertNotRegex(text, r"microdnf -y install[^\n]*\bgit\b")
 
     def test_hygiene(self):
         for p in PRODUCTS + ("ci-tools",):
@@ -98,12 +114,17 @@ class RenovateTests(unittest.TestCase):
 
     def test_version_managers_and_post_upgrade(self):
         managers = {m.get("depNameTemplate"): m for m in self.cfg["customManagers"] if "depNameTemplate" in m}
-        self.assertEqual(set(managers), {"jira-software", "confluence", "bitbucket"})
+        self.assertEqual(set(managers), {"jira-software", "confluence", "bitbucket", "git/git"})
         rules = {r["matchDepNames"][0]: r for r in self.cfg["packageRules"] if "matchDepNames" in r}
         for product, dep in (("jira", "jira-software"), ("confluence", "confluence"), ("bitbucket", "bitbucket")):
             cmd = rules[dep]["postUpgradeTasks"]["commands"][0]
             self.assertEqual(cmd, f"scripts/pin-version.sh {product} {{{{{{newVersion}}}}}}")
+            self.assertEqual(rules[dep]["postUpgradeTasks"]["fileFilters"], [f"{product}/hardening_manifest.yaml"])
             re.compile(rules[dep]["allowedVersions"].strip("/"))
+        resource_rule = [r for r in self.cfg["packageRules"] if "github-releases" in r.get("matchDatasources", [])][0]
+        self.assertEqual(resource_rule["postUpgradeTasks"]["commands"], ["scripts/pin-resource.sh {{{packageFileDir}}} --all"])
+        manifest_managers = [m for m in self.cfg["customManagers"] if "hardening_manifest" in m["managerFilePatterns"][0]]
+        self.assertGreaterEqual(len(manifest_managers), 5)
 
 
 class ManifestTests(unittest.TestCase):
@@ -145,12 +166,11 @@ class SupportFilesTests(unittest.TestCase):
         self.assertEqual(set(doc["products"]), set(PRODUCTS))
         self.assertEqual(str(doc["base_os"]["maintenance_ends"]), "2032-05-31")
 
-    def test_no_sha256_placeholder_files(self):
-        # SHA256 files are written by scripts/pin-version.sh; when present they must be real digests.
+    def test_no_stray_version_or_sha_files(self):
+        # hardening_manifest.yaml is the single source of truth.
         for p in PRODUCTS:
-            f = ROOT / p / "SHA256"
-            if f.exists():
-                self.assertRegex(f.read_text().strip(), r"^[0-9a-f]{64}$")
+            self.assertFalse((ROOT / p / "VERSION").exists(), p)
+            self.assertFalse((ROOT / p / "SHA256").exists(), p)
 
 
 if __name__ == "__main__":

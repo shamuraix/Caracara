@@ -5,7 +5,7 @@ SHELL := /usr/bin/env bash
 PRODUCT ?= jira
 PRODUCTS := jira confluence bitbucket
 
-.PHONY: help lint test build gate patch sign pin pin-base certs eol
+.PHONY: help lint test build gate patch sign pin pin-resources manifest-check pin-base certs eol
 
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -28,8 +28,14 @@ sign: ## sign + attest the image from build.env and move the version tag
 patch: ## copa-patch a live tag, e.g. make patch IMAGE=jira:11.3.11
 	scripts/patch.sh $(IMAGE)
 
-pin: ## pin a product version + sha256, e.g. make pin PRODUCT=jira VERSION=11.3.11
+pin: ## pin a product version + tarball sha256, e.g. make pin PRODUCT=jira VERSION=11.3.11
 	scripts/pin-version.sh $(PRODUCT) $(VERSION)
+
+pin-resources: ## (re)pin every resource sha256 in PRODUCT/hardening_manifest.yaml (tini, git, copa, crane)
+	scripts/pin-resource.sh $(PRODUCT) --all
+
+manifest-check: ## list unpinned resources for every image
+	@for d in $(PRODUCTS) ci-tools; do python3 scripts/manifest.py check $$d || true; done
 
 pin-base: ## resolve and pin the base image digest for PRODUCT
 	scripts/pin-base.sh $(PRODUCT)

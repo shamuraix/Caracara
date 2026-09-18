@@ -12,6 +12,7 @@ bumps by policy; this section is how to keep them from blocking every build.
 | JDK CVE | `java-*-openjdk-headless` RPM | Copa, because the JDK is an RPM here (not so on Atlassian's Temurin-based Ubuntu image) | 7 days |
 | Python entrypoint deps (`python3-jinja2`) | RPM | Copa | 7 days |
 | Atlassian product CVE (e.g. auth bypass) | Not in Trivy at all; only in Atlassian's advisory | Version bump, often emergency | 72 hours |
+| Manifest resources that are not RPMs (`tini`, git built from source, `copa`/`crane` in ci-tools) | Not in Trivy (no package DB entry) | Bump the resource in `hardening_manifest.yaml` (Renovate MR + `pin-resource.sh`), rebuild | 30 days; 7 days for git on Bitbucket |
 
 ## Watch three feeds, not one
 

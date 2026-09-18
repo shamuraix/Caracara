@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Pins every base digest and Atlassian version; opens a merge request per bump. Runs from the self-hosted Renovate CronJob in k8s/renovate/.",
+  "description": "Pins every base digest, Atlassian version and manifest resource; opens a merge request per bump. Runs from the self-hosted Renovate CronJob in k8s/renovate/.",
   "extends": [
     "config:recommended",
     ":pinDigestsExceptForDevDependencies",
@@ -9,14 +9,21 @@
     ":semanticCommits"
   ],
   "timezone": "UTC",
-  "schedule": ["at any time"],
+  "schedule": [
+    "at any time"
+  ],
   "prHourlyLimit": 0,
   "prConcurrentLimit": 10,
-  "labels": ["renovate", "image-hygiene"],
+  "labels": [
+    "renovate",
+    "image-hygiene"
+  ],
   "dockerfile": {
     "enabled": true,
     "pinDigests": true,
-    "managerFilePatterns": ["/(^|/)Dockerfile$/"]
+    "managerFilePatterns": [
+      "/(^|/)Dockerfile$/"
+    ]
   },
   "customDatasources": {
     "atlassian": {
@@ -31,35 +38,75 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "jira/VERSION -> Jira Software Data Center",
-      "managerFilePatterns": ["/^jira/VERSION$/"],
-      "matchStrings": ["^(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*$"],
+      "description": "jira/hardening_manifest.yaml args.VERSION -> Atlassian Marketplace",
+      "managerFilePatterns": [
+        "/^jira/hardening_manifest\\.yaml$/"
+      ],
+      "matchStrings": [
+        "\\n  VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
       "datasourceTemplate": "custom.atlassian",
       "depNameTemplate": "jira-software",
       "versioningTemplate": "loose"
     },
     {
       "customType": "regex",
-      "description": "confluence/VERSION -> Confluence Data Center",
-      "managerFilePatterns": ["/^confluence/VERSION$/"],
-      "matchStrings": ["^(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*$"],
+      "description": "confluence/hardening_manifest.yaml args.VERSION -> Atlassian Marketplace",
+      "managerFilePatterns": [
+        "/^confluence/hardening_manifest\\.yaml$/"
+      ],
+      "matchStrings": [
+        "\\n  VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
       "datasourceTemplate": "custom.atlassian",
       "depNameTemplate": "confluence",
       "versioningTemplate": "loose"
     },
     {
       "customType": "regex",
-      "description": "bitbucket/VERSION -> Bitbucket Data Center",
-      "managerFilePatterns": ["/^bitbucket/VERSION$/"],
-      "matchStrings": ["^(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*$"],
+      "description": "bitbucket/hardening_manifest.yaml args.VERSION -> Atlassian Marketplace",
+      "managerFilePatterns": [
+        "/^bitbucket/hardening_manifest\\.yaml$/"
+      ],
+      "matchStrings": [
+        "\\n  VERSION: \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
       "datasourceTemplate": "custom.atlassian",
       "depNameTemplate": "bitbucket",
       "versioningTemplate": "loose"
     },
     {
       "customType": "regex",
+      "description": "Manifest resources annotated with `# renovate: datasource=... depName=...` (tini, git, copa, crane): the version inside the URL",
+      "managerFilePatterns": [
+        "/(^|/)hardening_manifest\\.yaml$/"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+depName=(?<depName>\\S+)[\\s\\S]*?url:\\s*\\S+?/v?(?<currentValue>\\d+\\.\\d+\\.\\d+)/[^\\n]*"
+      ],
+      "extractVersionTemplate": "^v?(?<version>.*)$",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "git source tarball in bitbucket/hardening_manifest.yaml (version is in the filename, not a path segment)",
+      "managerFilePatterns": [
+        "/^bitbucket/hardening_manifest\\.yaml$/"
+      ],
+      "matchStrings": [
+        "url:\\s*https://mirrors\\.edge\\.kernel\\.org/pub/software/scm/git/git-(?<currentValue>\\d+\\.\\d+\\.\\d+)\\.tar\\.xz"
+      ],
+      "datasourceTemplate": "github-tags",
+      "depNameTemplate": "git/git",
+      "extractVersionTemplate": "^v(?<version>\\d+\\.\\d+\\.\\d+)$",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
       "description": "ARG <TOOL>_VERSION lines annotated with `# renovate: datasource=... depName=...`",
-      "managerFilePatterns": ["/(^|/)Dockerfile$/"],
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/"
+      ],
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+depName=(?<depName>\\S+)\\s*\\nARG\\s+\\w+_VERSION=(?<currentValue>\\S+)"
       ],
@@ -69,68 +116,147 @@
   "packageRules": [
     {
       "description": "Atlassian version bumps: stay on the pinned line; a new feature/LTS line is a deliberate change (edit allowedVersions + support-windows.yaml)",
-      "matchDatasources": ["custom.atlassian"],
-      "matchDepNames": ["jira-software"],
+      "matchDatasources": [
+        "custom.atlassian"
+      ],
+      "matchDepNames": [
+        "jira-software"
+      ],
       "allowedVersions": "/^11\\.3\\./",
       "postUpgradeTasks": {
-        "commands": ["scripts/pin-version.sh jira {{{newVersion}}}"],
-        "fileFilters": ["jira/VERSION", "jira/SHA256", "jira/Dockerfile"],
+        "commands": [
+          "scripts/pin-version.sh jira {{{newVersion}}}"
+        ],
+        "fileFilters": [
+          "jira/hardening_manifest.yaml"
+        ],
         "executionMode": "update"
       },
       "commitMessageTopic": "Jira",
-      "labels": ["renovate", "atlassian-release"]
+      "labels": [
+        "renovate",
+        "atlassian-release"
+      ]
     },
     {
-      "matchDatasources": ["custom.atlassian"],
-      "matchDepNames": ["confluence"],
+      "matchDatasources": [
+        "custom.atlassian"
+      ],
+      "matchDepNames": [
+        "confluence"
+      ],
       "allowedVersions": "/^9\\.2\\./",
       "postUpgradeTasks": {
-        "commands": ["scripts/pin-version.sh confluence {{{newVersion}}}"],
-        "fileFilters": ["confluence/VERSION", "confluence/SHA256", "confluence/Dockerfile"],
+        "commands": [
+          "scripts/pin-version.sh confluence {{{newVersion}}}"
+        ],
+        "fileFilters": [
+          "confluence/hardening_manifest.yaml"
+        ],
         "executionMode": "update"
       },
       "commitMessageTopic": "Confluence",
-      "labels": ["renovate", "atlassian-release"]
+      "labels": [
+        "renovate",
+        "atlassian-release"
+      ]
     },
     {
-      "matchDatasources": ["custom.atlassian"],
-      "matchDepNames": ["bitbucket"],
+      "matchDatasources": [
+        "custom.atlassian"
+      ],
+      "matchDepNames": [
+        "bitbucket"
+      ],
       "allowedVersions": "/^9\\.4\\./",
       "postUpgradeTasks": {
-        "commands": ["scripts/pin-version.sh bitbucket {{{newVersion}}}"],
-        "fileFilters": ["bitbucket/VERSION", "bitbucket/SHA256", "bitbucket/Dockerfile"],
+        "commands": [
+          "scripts/pin-version.sh bitbucket {{{newVersion}}}"
+        ],
+        "fileFilters": [
+          "bitbucket/hardening_manifest.yaml"
+        ],
         "executionMode": "update"
       },
       "commitMessageTopic": "Bitbucket",
-      "labels": ["renovate", "atlassian-release"]
+      "labels": [
+        "renovate",
+        "atlassian-release"
+      ]
+    },
+    {
+      "description": "Resource bumps (tini, git, copa, crane): Renovate rewrites the URL, then pin-resource.sh downloads through Artifactory and stores the new sha256 in the same MR",
+      "matchDatasources": [
+        "github-releases",
+        "github-tags"
+      ],
+      "matchFileNames": [
+        "**/hardening_manifest.yaml"
+      ],
+      "postUpgradeTasks": {
+        "commands": [
+          "scripts/pin-resource.sh {{{packageFileDir}}} --all"
+        ],
+        "fileFilters": [
+          "**/hardening_manifest.yaml"
+        ],
+        "executionMode": "update"
+      },
+      "labels": [
+        "renovate",
+        "resource"
+      ],
+      "automerge": false
     },
     {
       "description": "Base image digest bumps merge automatically once the pipeline (build, gate, sign) is green; that is the weekly rebuild trigger",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["/ubi9/ubi-minimal$/"],
-      "matchUpdateTypes": ["digest", "patch"],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "/ubi9/ubi-minimal$/"
+      ],
+      "matchUpdateTypes": [
+        "digest",
+        "patch"
+      ],
       "automerge": true,
       "automergeType": "pr",
-      "labels": ["renovate", "base-image"],
+      "labels": [
+        "renovate",
+        "base-image"
+      ],
       "commitMessageTopic": "UBI 9 minimal base"
     },
     {
       "description": "A new UBI major is a deliberate migration (Trivy needs vuln data for it first)",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["/ubi9/ubi-minimal$/"],
-      "matchUpdateTypes": ["major", "minor"],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "/ubi9/ubi-minimal$/"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor"
+      ],
       "enabled": true,
       "automerge": false
     },
     {
       "description": "Tool bumps in ci-tools and the buildkitd/renovate manifests",
-      "matchFileNames": ["ci-tools/Dockerfile", "k8s/**"],
+      "matchFileNames": [
+        "ci-tools/Dockerfile",
+        "k8s/**"
+      ],
       "groupName": "ci tooling",
       "automerge": false
     }
   ],
   "kubernetes": {
-    "managerFilePatterns": ["/^k8s/.+\\.ya?ml$/"]
+    "managerFilePatterns": [
+      "/^k8s/.+\\.ya?ml$/"
+    ]
   },
   "hostRules": [
     {

@@ -1,21 +1,33 @@
 # syntax=docker/dockerfile:1.7
 # Confluence Data Center on UBI 9 minimal.
 #
-# Build context is the repository root (shared/ is needed):
-#   buildctl build --frontend dockerfile.v0 --local context=. --local dockerfile=confluence ...
+# Resources (product tarball, tini) come from hardening_manifest.yaml via
+# scripts/build.sh as <ARG>_URL / <ARG>_SHA256 build args; ADD --checksum
+# verifies each one.  Build from the repository root: scripts/build.sh confluence
 ARG ART=artifactory.example.com
+ARG TARGETARCH
+
+FROM scratch AS tini-amd64
+ARG TINI_AMD64_URL
+ARG TINI_AMD64_SHA256
+ADD --checksum=sha256:${TINI_AMD64_SHA256} --chmod=0755 ${TINI_AMD64_URL} /tini
+
+FROM scratch AS tini-arm64
+ARG TINI_ARM64_URL
+ARG TINI_ARM64_SHA256
+ADD --checksum=sha256:${TINI_ARM64_SHA256} --chmod=0755 ${TINI_ARM64_URL} /tini
+
+FROM tini-${TARGETARCH} AS tini
+
 FROM ${ART}/docker-redhat-remote/ubi9/ubi-minimal:9.7 AS runtime
 
-ARG ART
 ARG TARGETARCH
-ARG VERSION=9.2.5
-# sha256 of the product tarball (scripts/pin-version.sh); the build fails when empty.
-ARG SHA256
+ARG VERSION
 ARG ARTEFACT=atlassian-confluence
-ARG DOWNLOAD_BASE=https://${ART}/artifactory/generic-atlassian-remote/software/confluence/downloads
-# Confluence 9.x supports Java 17; switch to java-21-openjdk-headless per the
-# supported platforms page for the version in VERSION.
+# Confluence 9.x supports Java 17; switch per the supported platforms page.
 ARG JAVA_PACKAGE=java-17-openjdk-headless
+ARG PRODUCT_URL
+ARG PRODUCT_SHA256
 
 ENV RUN_USER=confluence \
     RUN_GROUP=confluence \
@@ -32,19 +44,19 @@ LABEL org.opencontainers.image.title="Atlassian Confluence Data Center" \
       org.opencontainers.image.vendor="Atlassian (product); platform team (image)" \
       io.caracara.product="confluence"
 
+COPY --from=tini /tini /usr/bin/tini
 COPY shared/entrypoint_helpers.py shared/shutdown-wait.sh confluence/entrypoint.py /
 COPY shared/support /opt/atlassian/support
 COPY confluence/config/ /opt/atlassian/etc/
 
-ADD --checksum=sha256:${SHA256} \
-    ${DOWNLOAD_BASE}/${ARTEFACT}-${VERSION}.tar.gz /tmp/product.tar.gz
+ADD --checksum=sha256:${PRODUCT_SHA256} ${PRODUCT_URL} /tmp/product.tar.gz
 
 # procps-ng is required by Confluence's start scripts (ps); fontconfig by the
 # bundled Synchrony/diagram rendering.  /var/lib/rpm is kept for Trivy and Copa.
 RUN --mount=type=cache,id=dnf-${TARGETARCH},target=/var/cache/dnf,sharing=locked \
     microdnf -y upgrade --refresh --best --nodocs --setopt=install_weak_deps=0 \
  && microdnf -y install --nodocs --setopt=install_weak_deps=0 \
-      ${JAVA_PACKAGE} fontconfig python3 python3-jinja2 tini procps-ng which shadow-utils tar gzip \
+      ${JAVA_PACKAGE} fontconfig python3 python3-jinja2 procps-ng which shadow-utils tar gzip \
  && groupadd --gid ${RUN_GID} ${RUN_GROUP} \
  && useradd --uid ${RUN_UID} --gid ${RUN_GID} --home-dir ${CONFLUENCE_HOME} --create-home --shell /bin/bash ${RUN_USER} \
  && mkdir -p ${CONFLUENCE_INSTALL_DIR} \
@@ -55,7 +67,8 @@ RUN --mount=type=cache,id=dnf-${TARGETARCH},target=/var/cache/dnf,sharing=locked
  && chmod +x /entrypoint.py /shutdown-wait.sh /opt/atlassian/support/*.sh \
  && chown -R ${RUN_USER}:${RUN_GROUP} ${CONFLUENCE_INSTALL_DIR} ${CONFLUENCE_HOME} \
  && chmod -R u=rwX,g=rX,o=rX ${CONFLUENCE_INSTALL_DIR} && chmod 0750 ${CONFLUENCE_HOME} \
- && microdnf clean all
+ && microdnf clean all \
+ && /usr/bin/tini --version
 
 VOLUME ["${CONFLUENCE_HOME}"]
 USER ${RUN_USER}

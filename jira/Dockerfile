@@ -1,26 +1,38 @@
 # syntax=docker/dockerfile:1.7
 # Jira Software / Jira Service Management Data Center on UBI 9 minimal.
 #
-# Build context is the repository root (shared/ is needed):
-#   buildctl build --frontend dockerfile.v0 --local context=. --local dockerfile=jira ...
+# Everything from outside the UBI repos (product tarball, tini) is declared in
+# hardening_manifest.yaml with a URL and sha256; scripts/build.sh passes them
+# in as <ARG>_URL / <ARG>_SHA256 build args and ADD --checksum verifies each
+# one.  Build from the repository root:
+#   scripts/build.sh jira        # or: buildctl ... $(scripts/manifest.py build-args jira)
 #
-# The FROM line carries a tag and, once Renovate has run, a digest.  Red Hat
-# republishes the tag, so the digest is what makes the build reproducible;
-# Renovate bumps it and opens a merge request on every base change.
+# The FROM line carries a tag and, once Renovate has run, a digest.
 ARG ART=artifactory.example.com
+ARG TARGETARCH
+
+# --- resources (one stage per architecture; FROM tini-${TARGETARCH} selects) ---
+FROM scratch AS tini-amd64
+ARG TINI_AMD64_URL
+ARG TINI_AMD64_SHA256
+ADD --checksum=sha256:${TINI_AMD64_SHA256} --chmod=0755 ${TINI_AMD64_URL} /tini
+
+FROM scratch AS tini-arm64
+ARG TINI_ARM64_URL
+ARG TINI_ARM64_SHA256
+ADD --checksum=sha256:${TINI_ARM64_SHA256} --chmod=0755 ${TINI_ARM64_URL} /tini
+
+FROM tini-${TARGETARCH} AS tini
+
+# --- runtime ---
 FROM ${ART}/docker-redhat-remote/ubi9/ubi-minimal:9.7 AS runtime
 
-ARG ART
 ARG TARGETARCH
-ARG VERSION=11.3.11
-# sha256 of the product tarball, from product-downloads' .sha256 file (scripts/pin-version.sh).
-# Left empty on purpose: ADD --checksum fails the build when it is not supplied.
-ARG SHA256
-# atlassian-jira-software for Jira Software, atlassian-servicedesk for JSM.
+ARG VERSION
 ARG ARTEFACT=atlassian-jira-software
-ARG DOWNLOAD_BASE=https://${ART}/artifactory/generic-atlassian-remote/software/jira/downloads
-# Jira 11 requires Java 21; the JDK is an RPM so Copa can patch it.
 ARG JAVA_PACKAGE=java-21-openjdk-headless
+ARG PRODUCT_URL
+ARG PRODUCT_SHA256
 
 ENV RUN_USER=jira \
     RUN_GROUP=jira \
@@ -37,14 +49,13 @@ LABEL org.opencontainers.image.title="Atlassian Jira Data Center" \
       org.opencontainers.image.vendor="Atlassian (product); platform team (image)" \
       io.caracara.product="jira"
 
-# Entrypoint and support scripts (shared/ + product-specific entrypoint).
+COPY --from=tini /tini /usr/bin/tini
 COPY shared/entrypoint_helpers.py shared/shutdown-wait.sh jira/entrypoint.py /
 COPY shared/support /opt/atlassian/support
 COPY jira/config/ /opt/atlassian/etc/
 
 # Checksum-verified download through the Artifactory generic remote; the build fails on mismatch.
-ADD --checksum=sha256:${SHA256} \
-    ${DOWNLOAD_BASE}/${ARTEFACT}-${VERSION}.tar.gz /tmp/product.tar.gz
+ADD --checksum=sha256:${PRODUCT_SHA256} ${PRODUCT_URL} /tmp/product.tar.gz
 
 # One layer: OS upgrade (this is where the weekly rebuild removes CVEs), runtime
 # packages, user, product install, and cache cleanup.  /var/lib/rpm is kept so
@@ -52,7 +63,7 @@ ADD --checksum=sha256:${SHA256} \
 RUN --mount=type=cache,id=dnf-${TARGETARCH},target=/var/cache/dnf,sharing=locked \
     microdnf -y upgrade --refresh --best --nodocs --setopt=install_weak_deps=0 \
  && microdnf -y install --nodocs --setopt=install_weak_deps=0 \
-      ${JAVA_PACKAGE} fontconfig python3 python3-jinja2 tini procps-ng which shadow-utils tar gzip \
+      ${JAVA_PACKAGE} fontconfig python3 python3-jinja2 procps-ng which shadow-utils tar gzip \
  && groupadd --gid ${RUN_GID} ${RUN_GROUP} \
  && useradd --uid ${RUN_UID} --gid ${RUN_GID} --home-dir ${JIRA_HOME} --create-home --shell /bin/bash ${RUN_USER} \
  && mkdir -p ${JIRA_INSTALL_DIR} \
@@ -62,7 +73,8 @@ RUN --mount=type=cache,id=dnf-${TARGETARCH},target=/var/cache/dnf,sharing=locked
  && chmod +x /entrypoint.py /shutdown-wait.sh /opt/atlassian/support/*.sh \
  && chown -R ${RUN_USER}:${RUN_GROUP} ${JIRA_INSTALL_DIR} ${JIRA_HOME} \
  && chmod -R u=rwX,g=rX,o=rX ${JIRA_INSTALL_DIR} && chmod 0750 ${JIRA_HOME} \
- && microdnf clean all
+ && microdnf clean all \
+ && /usr/bin/tini --version
 
 VOLUME ["${JIRA_HOME}"]
 USER ${RUN_USER}

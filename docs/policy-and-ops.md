@@ -33,7 +33,7 @@ Sigstore policy-controller is an equivalent alternative to Kyverno.
 - [ ] Build and pin a ci-tools image (`buildctl`, `trivy`, `copa`, `cosign`, `crane`, `jq`) in `docker-atlassian-local`; Renovate keeps it current
 - [ ] GitLab Runner with the kubernetes executor (`k8s/gitlab-runner/values.yaml`) or Jenkins kubernetes plugin (`k8s/jenkins/pod-template.yaml`) mounting `buildkit-client-certs`; no privileged pods, no Docker socket
 - [ ] Renovate as a Kubernetes CronJob (`k8s/renovate/`): `platform: gitlab`, docker manager for base digests, regex manager for `VERSION`, `hostRules` for Artifactory
-- [ ] `scripts/pin-version.sh` for each product so `SHA256` exists; the build refuses to run without it
+- [ ] `make manifest-check`, then `scripts/pin-version.sh` per product and `scripts/pin-resource.sh <dir> --all` for git, copa and crane; the build refuses to run while a `hardening_manifest.yaml` resource has no sha256
 - [ ] `.trivyignore.yaml` with mandatory `expired_at` on every entry; CI fails on entries past expiry (`scripts/check_trivyignore.py`)
 - [ ] Signing: GitLab OIDC keyless, or a cosign key in Jenkins credentials / KMS; publish the verification policy consumers use (`k8s/policy/`)
 - [ ] Artifactory retention: keep the last 3 signed digests per version tag, clean unsigned `-patched` tags after 24h
@@ -42,7 +42,7 @@ Sigstore policy-controller is an equivalent alternative to Kyverno.
 ## Recurring
 
 - **Daily**: patch job green; any Copa "version lower than required" error triaged same day
-- **Weekly**: rebuild green for all products; review the `unfixed.json` (`will_not_fix`) list for anything Red Hat reclassified
+- **Weekly**: rebuild green for all products; review the `unfixed.json` (`will_not_fix`) list for anything Red Hat reclassified; merge Renovate MRs for manifest resources (git on Bitbucket first: it is not Copa-patchable)
 - **Monthly**: bump Atlassian minor/patch versions (merge the Renovate MRs); expire stale ignore entries; merge the UBI minor bump; re-check Trivy has vuln data for the base OS (relevant when moving to UBI 10)
 - **Quarterly**: rehearse an emergency Atlassian advisory: from advisory to signed image in production in under 24h (`scripts/pin-version.sh`, MR, rebuild, `crane tag`)
 - **Yearly, every May 31**: confirm base-OS phase (RHEL 9 full support ends 2027-05-31; maintenance 2032-05-31) and update `support-windows.yaml`

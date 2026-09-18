@@ -4,7 +4,9 @@ Runners and `buildkitd` never reach the internet directly. Set up these
 repositories once and point every `FROM`, `ADD` and tool download at them
 (the Dockerfiles take the hostname as `ARG ART`; `buildkitd.toml` mirrors the
 upstream registries into the remotes so even `# syntax=` frontend images come
-through).
+through; `scripts/manifest.py` rewrites the upstream URLs in each
+`hardening_manifest.yaml` to the generic remotes below, override the map with
+`RESOURCE_MIRRORS="host=https://art/artifactory/repo,..."`).
 
 | Artifactory repo | Type | Proxies / holds | Used by |
 |---|---|---|---|
@@ -12,7 +14,8 @@ through).
 | `docker-registry1-remote` | Docker remote | `registry1.dso.mil` (Iron Bank, needs your registry1 token) | `FROM` when using hardened bases |
 | `docker-hub-remote`, `docker-ghcr-remote` | Docker remote | `moby/buildkit`, `aquasec/trivy`, `renovate/renovate`, `tonistiigi/binfmt`, `ghcr.io/sigstore/cosign/cosign`, Trivy DBs (`ghcr.io/aquasecurity/trivy-db`, `trivy-java-db`) | ci-tools image, buildkitd, `TRIVY_DB_REPOSITORY` |
 | `generic-atlassian-remote` | Generic remote | `https://product-downloads.atlassian.com` | `ADD --checksum` of the product tarball, `scripts/pin-version.sh` |
-| `generic-github-remote` | Generic remote | `https://github.com` (release tarballs) | `copa` and `crane` binaries in ci-tools |
+| `generic-github-remote` | Generic remote | `https://github.com` (release assets) | `tini` binaries in every product image; `copa` and `crane` tarballs in ci-tools (`hardening_manifest.yaml` resources) |
+| `generic-kernel-remote` | Generic remote | `https://mirrors.edge.kernel.org` | git source tarball for Bitbucket (`hardening_manifest.yaml` resource) |
 | `pypi-remote` | PyPI remote | `https://pypi.org` | `yamllint`, `shellcheck-py` in ci-tools (lint stage) |
 | `docker-atlassian-local` | Docker local | Your built, patched, signed images, the ci-tools image and the BuildKit registry cache (`cache/<product>`) | `--output`, `copa --push`, deploys |
 | `docker` | Docker virtual | All of the above | Single pull endpoint for clusters |

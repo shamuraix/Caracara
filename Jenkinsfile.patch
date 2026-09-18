@@ -61,7 +61,7 @@ spec:
               sh '''#!/usr/bin/env bash
                 set -euo pipefail
                 export OUT_DIR="out/${PRODUCT}"; mkdir -p "${OUT_DIR}"
-                scripts/patch.sh "${PRODUCT}:$(tr -d '[:space:]' < "${PRODUCT}/VERSION")"
+                scripts/patch.sh "${PRODUCT}:$(python3 scripts/manifest.py version "${PRODUCT}")"
               '''
             }
           }

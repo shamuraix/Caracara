@@ -114,7 +114,7 @@ patch:
     SIGSTORE_ID_TOKEN: { aud: sigstore }
   script:
     - mkdir -p "$OUT_DIR"
-    - scripts/patch.sh "$PRODUCT:$(tr -d '[:space:]' < "$PRODUCT/VERSION")"
+    - scripts/patch.sh "$PRODUCT:$(python3 scripts/manifest.py version "$PRODUCT")"
   artifacts:
     when: always
     paths: [out/]

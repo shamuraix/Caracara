@@ -49,10 +49,10 @@ flowchart LR
 ## Repository layout
 
 ```
-jira/ confluence/ bitbucket/   Dockerfile, VERSION, SHA256 (pinned by scripts/pin-version.sh), entrypoint.py, config/*.j2
+jira/ confluence/ bitbucket/   Dockerfile, hardening_manifest.yaml (version + every external resource pinned by URL and sha256), entrypoint.py, config/*.j2
 shared/                        entrypoint_helpers.py, shutdown-wait.sh, support/ (thread and heap dumps)
-ci-tools/                      the single job image: buildctl, trivy, copa, cosign, crane, jq, python3
-scripts/                       build, gate, patch, sign, pin-version, pin-base, gen-buildkit-certs, checks, lint
+ci-tools/                      the single job image: buildctl, trivy, copa, cosign, crane, jq, python3 (+ its own hardening_manifest.yaml)
+scripts/                       build, gate, patch, sign, manifest.py, pin-version, pin-resource, pin-base, gen-buildkit-certs, checks, lint
 k8s/buildkit/                  rootless buildkitd StatefulSet, mTLS, registry mirrors -> Artifactory
 k8s/binfmt/                    optional QEMU DaemonSet for arm64 on an amd64 builder
 k8s/renovate/                  Renovate CronJob + global config
@@ -74,10 +74,13 @@ renovate.json                  digest pinning, Atlassian custom datasource, post
    Secret into the runner / Jenkins namespaces.
 3. **ci-tools image**: build `ci-tools/Dockerfile` once by hand (it is the
    bootstrap image) and push it to `docker-atlassian-local/ci-tools`.
-4. **Pin versions**: `scripts/pin-version.sh jira 11.3.11` (and confluence,
-   bitbucket). This writes `VERSION`, `SHA256` and the Dockerfile default; the
-   build refuses to run without a checksum. Then `scripts/pin-base.sh jira`
-   (or let Renovate do it on its first run).
+4. **Pin resources**: `make manifest-check` lists what is unpinned.
+   `scripts/pin-version.sh jira 11.3.11` (and confluence, bitbucket) pins the
+   product tarball from Atlassian's published checksum;
+   `scripts/pin-resource.sh bitbucket GIT` and `scripts/pin-resource.sh ci-tools --all`
+   download and pin git, copa and crane. The build refuses to run while any
+   resource in a `hardening_manifest.yaml` has no sha256. Then
+   `scripts/pin-base.sh jira` (or let Renovate do it on its first run).
 5. **CI**: GitLab: set the masked variable `ART_DOCKER_CONFIG` (docker
    `config.json` for Artifactory), create the two pipeline schedules
    (`JOB=rebuild` weekly, `JOB=patch` daily). Jenkins: create the credentials
@@ -93,7 +96,7 @@ Full setup and recurring checklists: [docs/policy-and-ops.md](docs/policy-and-op
 
 - [Base image strategy](docs/base-image-strategy.md): why UBI 9 minimal, the minor-version trap, digest pinning.
 - [Artifactory](docs/artifactory.md): the repositories and what goes through each.
-- [Building with BuildKit](docs/building.md): Dockerfile pattern, per-product differences, buildctl invocation, multi-arch.
+- [Building with BuildKit](docs/building.md): the hardening manifest (resources pinned by URL and sha256, tini as a pinned binary, git from source), Dockerfile pattern, per-product differences, buildctl invocation, multi-arch.
 - [Scanning with Trivy](docs/scanning.md): the two scans, flags, Red Hat fix versions, VEX and the ignore file.
 - [Patching with Copacetic](docs/patching.md): the daily fast path and its limits.
 - [Pipeline](docs/pipeline.md): triggers, the shared daemon, GitLab CI and Jenkins.

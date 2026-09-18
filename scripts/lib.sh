@@ -45,21 +45,20 @@ product_dir() {
   echo "${product}"
 }
 
-# Reads $product/VERSION (single line, semver-ish).
+# Product version: args.VERSION in <product>/hardening_manifest.yaml.
 product_version() {
-  local product="$1"
-  tr -d '[:space:]' < "$(product_dir "${product}")/VERSION"
+  python3 "$(dirname "${BASH_SOURCE[0]}")/manifest.py" version "$(product_dir "$1")"
 }
 
-# Reads $product/SHA256; fails loudly when it is missing so builds stay pinned.
-product_sha256() {
-  local product="$1" f
-  f="$(product_dir "${product}")/SHA256"
-  [ -s "${f}" ] || die "${f} is missing: run scripts/pin-version.sh ${product} $(product_version "${product}")"
-  local sha
-  sha="$(tr -d '[:space:]' < "${f}")"
-  [[ "${sha}" =~ ^[0-9a-f]{64}$ ]] || die "${f} does not contain a sha256 hex digest"
-  echo "${sha}"
+# Refuse to build with unpinned resources (empty sha256 in the manifest).
+manifest_check() {
+  python3 "$(dirname "${BASH_SOURCE[0]}")/manifest.py" check "$(product_dir "$1")" >&2 \
+    || die "pin every resource in $1/hardening_manifest.yaml first"
+}
+
+# `--opt=build-arg:K=V` lines for buildctl, with upstream URLs rewritten to Artifactory.
+manifest_build_args() {
+  python3 "$(dirname "${BASH_SOURCE[0]}")/manifest.py" build-args "$(product_dir "$1")" --art "${ART}"
 }
 
 # Renders the trivy gate command; exit 1 on fixable HIGH/CRITICAL, 2 on EOL OS.
