@@ -17,7 +17,7 @@ data:
       // postUpgradeTasks run scripts/pin-resource.sh inside the Renovate pod
       // (product versions come from Iron Bank via sync-ironbank.sh, not Renovate).
       allowedCommands: [
-        "^scripts/pin-resource\\.sh ((jira|confluence|bitbucket)/(lts|latest)|ci-tools) --all$",
+        "^scripts/pin-resource\\.sh ((jira|confluence|bitbucket)/lts|ci-tools) --all$",
       ],
       allowScripts: false,
       // Everything the datasources touch goes through Artifactory.

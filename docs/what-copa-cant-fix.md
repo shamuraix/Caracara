@@ -26,26 +26,21 @@ for base-OS EOL. Product versions follow Iron Bank: the weekly rebuild's
 `sync-ironbank` stage pulls each line's version from its Iron Bank upstream
 project's `development` branch, which normally moves within days of an
 advisory. The emergency path, when you cannot wait for Iron Bank, is
-`scripts/pin-version.sh <product>/<line> <version>` in a hand-made MR; the
-next sync overwrites it once Iron Bank has caught up.
+`scripts/pin-version.sh <product>/lts <version>` in a hand-made MR; the next
+sync overwrites it once Iron Bank has caught up.
 
 ## Version support windows are the real EOL clock
 
 Atlassian only ships security fixes for the current feature release and the
-latest Long Term Support (LTS) line, which is why every product is built on
-both (`<product>/lts`, `<product>/latest`). Running an image on a Jira line
-that has left support is the same failure as running on UBI 8: no fix will
-ever arrive, however often you rebuild. `support-windows.yaml` tracks each
-line's end date next to the base-OS date, and `scripts/eol_check.py` fails the
-lint stage 30 days before any of them (warns at 90).
-
-- **lts**: two years from the line's .0 release. When Iron Bank moves its
-  `<product>-lts` project to a new LTS line, the sync follows; update the
-  line's entry in `support-windows.yaml` at that point. The old LTS stays
-  supported for its remaining window, so the switch is not a fire drill.
-- **latest**: only until the next feature release plus the bug-fix window.
-  The line moves whenever Iron Bank's non-LTS project does, roughly monthly;
-  `support_ends` for it is short-lived and mostly informational.
+latest Long Term Support (LTS) line. Only the LTS line is built here (it is
+what Iron Bank hardens and what gets two years of fixes), so running an image
+on a line that has left support is the same failure as running on UBI 8: no
+fix will ever arrive, however often you rebuild. `support-windows.yaml` tracks
+each line's end date next to the base-OS date, and `scripts/eol_check.py`
+fails the lint stage 30 days before any of them (warns at 90). When Iron Bank
+moves its `<product>-lts` repository to a new LTS line, the sync follows;
+update the line's entry in `support-windows.yaml` at that point. The old LTS
+stays supported for its remaining window, so the switch is not a fire drill.
 
 ## Iron Bank as a second opinion
 

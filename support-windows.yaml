@@ -3,12 +3,9 @@
 # when re-pinning a line or the base OS.  Sources: endoflife.date/rhel (Red
 # Hat product life cycle) and Atlassian's Data Center bug-fix / LTS policy.
 #
-# Each product has two lines, matching <product>/lts and <product>/latest:
-#   lts     Long Term Support: security fixes for two years from the .0 release
-#   latest  the current feature release: supported until the next feature
-#           release ships plus the bug-fix window, so `support_ends` is short
-#           and moves every time the line is re-pinned; `null` reports as
-#           "unknown" (warning only) until you set it from the release notes.
+# Each product has one line, matching <product>/lts: Long Term Support,
+# security fixes for two years from the .0 release.  `null` reports as
+# "unknown" (warning only) until you set it from the release notes.
 base_os:
   name: RHEL 9 / UBI 9
   full_support_ends: 2027-05-31
@@ -20,27 +17,15 @@ products:
       # Jira LTS lines: 9.4, 9.12, 10.3, 11.3 (one per year); 11.3 shipped Dec 2025.
       support_ends: 2027-12-01
       note: "verify against https://confluence.atlassian.com/jirasoftware/jira-software-release-notes"
-    latest:
-      line: "11.6"
-      support_ends: null
-      note: "set from the release notes when re-pinning jira/latest"
   confluence:
     lts:
       line: "10.2"
       # 10.2 is the LTS line Iron Bank tracks (confluence 10.2.18); two years from its .0 release.
       support_ends: 2027-12-01
       note: "verify against https://confluence.atlassian.com/doc/confluence-release-notes-327.html"
-    latest:
-      line: "10.6"
-      support_ends: null
-      note: "set from the release notes when re-pinning confluence/latest"
   bitbucket:
     lts:
       line: "10.2"
       # 10.2 is the LTS line Iron Bank tracks (bitbucket-lts 10.2.7); two years from its .0 release.
       support_ends: 2028-01-15
       note: "verify against https://confluence.atlassian.com/bitbucketserver/bitbucket-data-center-release-notes-872139866.html"
-    latest:
-      line: "10.6"
-      support_ends: null
-      note: "set from the release notes when re-pinning bitbucket/latest"

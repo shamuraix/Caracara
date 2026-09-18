@@ -49,9 +49,8 @@ flowchart LR
 ## Repository layout
 
 ```
-jira/ confluence/ bitbucket/   Dockerfile (shared by both lines), entrypoint.py, config/*.j2
-  <product>/lts/               hardening_manifest.yaml for the Long Term Support line (version + every external resource pinned by URL and sha256)
-  <product>/latest/            hardening_manifest.yaml for the current feature (non-LTS) line
+jira/ confluence/ bitbucket/   Dockerfile, entrypoint.py, config/*.j2
+  <product>/lts/               hardening_manifest.yaml for the Long Term Support line (the only line built): version + every external resource pinned by URL and sha256, and the Iron Bank repository it tracks
 shared/                        entrypoint_helpers.py, shutdown-wait.sh, support/ (thread and heap dumps)
 ci-tools/                      the single job image: buildctl, trivy, copa, cosign, crane, jq, python3 (+ its own hardening_manifest.yaml)
 scripts/                       build, gate, patch, sign, sync-ironbank (+ ironbank.py), manifest.py, pin-version, pin-resource, pin-base, open-gitlab-mr, gen-buildkit-certs, checks, lint
@@ -76,13 +75,11 @@ renovate.json                  digest pinning, Atlassian custom datasource, post
    Secret into the runner / Jenkins namespaces.
 3. **ci-tools image**: build `ci-tools/Dockerfile` once by hand (it is the
    bootstrap image) and push it to `docker-atlassian-local/ci-tools`.
-4. **Sync and pin**: `make sync` pulls every line's version and product
-   checksum from its Iron Bank upstream (`development` branch); check the
-   `upstream.ironbank.project` paths in the `latest` manifests match the
-   non-LTS project names in the Iron Bank group. `make manifest-check` then
-   lists what is still unpinned: `scripts/pin-resource.sh bitbucket/lts GIT`
-   (and `bitbucket/latest`, unless Iron Bank supplied it) and
-   `scripts/pin-resource.sh ci-tools --all` download and pin git, copa and
+4. **Sync and pin**: `make sync` clones every LTS line's Iron Bank repository
+   (`development` branch) and adopts its version and product checksum.
+   `make manifest-check` then lists what is still unpinned:
+   `scripts/pin-resource.sh bitbucket/lts GIT` (unless Iron Bank supplied it)
+   and `scripts/pin-resource.sh ci-tools --all` download and pin git, copa and
    crane. The build refuses to run while any resource in a
    `hardening_manifest.yaml` has no sha256. Then `scripts/pin-base.sh jira`
    (or let Renovate do it on its first run).
@@ -108,34 +105,36 @@ Full setup and recurring checklists: [docs/policy-and-ops.md](docs/policy-and-op
 - [What Copa can't fix](docs/what-copa-cant-fix.md): Java layer, product advisories, version support windows, SLAs.
 - [Policy gates and ops checklist](docs/policy-and-ops.md): Kyverno, setup and recurring tasks, sources.
 
-## Lines, Iron Bank upstreams and tags
+## LTS lines, Iron Bank upstreams and tags
 
-Atlassian only ships security fixes for the **current feature release** and
-the **latest Long Term Support (LTS)** line, so every product is built on
-both, from `<product>/lts/` and `<product>/latest/`. The CI matrix is
-`PRODUCT x LINE` (six images per run).
+Only the **Long Term Support (LTS)** line of each product is built, from
+`<product>/lts/`. That is the line Iron Bank hardens, and the one Atlassian
+keeps shipping security fixes for over a two-year window. The CI matrix is
+`PRODUCT x LINE` with `LINE = lts` (three images per run); a second line can
+be added as another directory and matrix value if you ever need one.
 
-**Versions come from Iron Bank.** Each line's manifest names the Iron Bank
-project it tracks under `upstream.ironbank` (Iron Bank Containers / Atlassian /
-*Product* Data Center / `<product>-lts` for the LTS line, the non-LTS project
-for `latest`). `scripts/sync-ironbank.sh --all` fetches that project's
-`hardening_manifest.yaml` from its **`development` branch** on repo1.dso.mil
-(through Artifactory) and adopts the product version, the tarball URL and
+**Versions come from Iron Bank.** Each manifest names the Iron Bank git
+repository it tracks under `upstream.ironbank`, in the form
+`https://repo1.dso.mil/dsop/atlassian/<product>-data-center/<product>-lts.git`
+(Iron Bank Containers / Atlassian / *Product* Data Center / `<product>-lts`).
+`scripts/sync-ironbank.sh --all` shallow-clones that repository's
+**`development` branch** and adopts the product version, the tarball URL and
 sha256 Iron Bank verifies, and tini/git pins when Iron Bank carries them. The
 weekly rebuild runs the sync first, builds from the synced manifests, and
 opens a merge request so git catches up; `make sync` does the same locally.
-Renovate deliberately does not touch product versions.
-Tags in `docker-atlassian-local`:
+Runners without egress to repo1.dso.mil set `IRONBANK_GIT_BASE` to a GitLab
+pull mirror of the Iron Bank projects. Renovate deliberately does not touch
+product versions. Tags in `docker-atlassian-local`:
 
 | Tag | Mutable | Meaning |
 |---|---|---|
 | `jira:11.3.11-<pipeline>` | no | one rebuild of the pinned version |
 | `jira:11.3.11` | yes | latest signed digest for that version (rebuild or daily patch) |
-| `jira:lts`, `jira:latest` | yes | the line tags; deploy from these and let admission enforce freshness |
+| `jira:lts` | yes | the line tag; deploy from this and let admission enforce freshness |
 
 When Iron Bank moves a project to a new line, the sync follows it; update the
 line's entry in `support-windows.yaml` when that happens.
-`scripts/pin-version.sh <product>/<line> <version>` remains the manual
+`scripts/pin-version.sh <product>/lts <version>` remains the manual
 override (an emergency Atlassian advisory before Iron Bank has caught up).
 
 ## Running the images

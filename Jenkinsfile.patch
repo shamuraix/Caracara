@@ -1,4 +1,4 @@
-// Daily Copa fast path: scan every live line (LTS and latest), patch fixable OS CVEs on
+// Daily Copa fast path: scan every live LTS line, patch fixable OS CVEs on
 // the shared buildkitd, re-gate, move the tag, sign.  Same agent pod and
 // credentials as Jenkinsfile; separate job so its cron and matrix are
 // independent of the weekly rebuild.
@@ -56,7 +56,7 @@ spec:
       matrix {
         axes {
           axis { name 'PRODUCT'; values 'jira', 'confluence', 'bitbucket' }
-          axis { name 'LINE'; values 'lts', 'latest' }
+          axis { name 'LINE'; values 'lts' }  // LTS lines only (what Iron Bank hardens)
         }
         stages {
           stage('product') {

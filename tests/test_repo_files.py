@@ -28,13 +28,13 @@ class GitLabCITests(unittest.TestCase):
         self.assertIn("scripts/sync-ironbank.sh --all --open-mr", script)
         paths = self.ci["sync-ironbank"]["artifacts"]["paths"]
         for p in PRODUCTS:
-            self.assertIn(f"{p}/*/hardening_manifest.yaml", paths)
+            self.assertIn(f"{p}/lts/hardening_manifest.yaml", paths)
         self.assertIn("stage('sync-ironbank')", (ROOT / "Jenkinsfile").read_text())
 
     def test_matrix_covers_all_products_and_lines(self):
         matrix = self.ci[".product-matrix"]["parallel"]["matrix"][0]
         self.assertEqual(tuple(matrix["PRODUCT"]), PRODUCTS)
-        self.assertEqual(matrix["LINE"], ["lts", "latest"])
+        self.assertEqual(matrix["LINE"], ["lts"])
         self.assertEqual(self.ci[".product-matrix"]["variables"]["TARGET"], "$PRODUCT/$LINE")
         self.assertEqual(self.ci[".product-matrix"]["variables"]["OUT_DIR"], "out/$PRODUCT-$LINE")
         self.assertIn('scripts/build.sh "$TARGET"', self.ci["build"]["script"][1])
@@ -44,7 +44,7 @@ class GitLabCITests(unittest.TestCase):
     def test_jenkins_matrix_has_line_axis(self):
         for f in ("Jenkinsfile", "Jenkinsfile.patch"):
             text = (ROOT / f).read_text()
-            self.assertIn("axis { name 'LINE'; values 'lts', 'latest' }", text, f)
+            self.assertIn("axis { name 'LINE'; values 'lts' }", text, f)
             self.assertIn('"${PRODUCT}/${LINE}"', text, f)
         for job in ("build", "gate", "sign", "patch"):
             self.assertIn(".product-matrix", self.ci[job]["extends"], job)
@@ -192,8 +192,8 @@ class SupportFilesTests(unittest.TestCase):
         for p in PRODUCTS:
             self.assertFalse((ROOT / p / "VERSION").exists(), p)
             self.assertFalse((ROOT / p / "SHA256").exists(), p)
-            for line in ("lts", "latest"):
-                self.assertTrue((ROOT / p / line / "hardening_manifest.yaml").exists(), f"{p}/{line}")
+            self.assertTrue((ROOT / p / "lts" / "hardening_manifest.yaml").exists(), f"{p}/lts")
+            self.assertFalse((ROOT / p / "latest").exists(), f"{p}: only LTS lines are built")
 
 
 if __name__ == "__main__":

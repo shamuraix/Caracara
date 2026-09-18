@@ -12,10 +12,10 @@
 # The runner mounts the buildkit-client-certs Secret at /certs
 # ([[runners.kubernetes.volumes.secret]] in k8s/gitlab-runner/values.yaml).
 #
-# The matrix is PRODUCT x LINE: every product is built on its LTS line and its
-# current feature (latest) line, each pinned in <product>/<line>/hardening_manifest.yaml.
-# Versions and checksums come from Iron Bank: the sync stage pulls each line's
-# upstream project manifest from its `development` branch before the rebuild,
+# The matrix is PRODUCT x LINE with LINE = lts only: every product is built on
+# its Long Term Support line, pinned in <product>/lts/hardening_manifest.yaml.
+# Versions and checksums come from Iron Bank: the sync stage clones each line's
+# upstream repository (<product>-lts.git, `development` branch) before the rebuild,
 # hands the updated manifests to the build stage as artifacts (so the rebuild
 # is always what Iron Bank is hardening right now) and opens a merge request
 # so git catches up.
@@ -56,7 +56,7 @@ workflow:
   parallel:
     matrix:
       - PRODUCT: [jira, confluence, bitbucket]
-        LINE: [lts, latest]
+        LINE: [lts]
   variables:
     TARGET: $PRODUCT/$LINE
     OUT_DIR: out/$PRODUCT-$LINE
@@ -77,8 +77,8 @@ lint:
   script:
     - scripts/lint.sh
 
-# Pull versions/checksums from each line's Iron Bank upstream (development
-# branch).  On MRs and pushes it only reports drift; on the scheduled rebuild
+# Clone each LTS line's Iron Bank upstream repository (development branch) and
+# adopt its version and checksums.  On MRs and pushes it only reports drift; on the scheduled rebuild
 # the synced manifests become artifacts consumed by build/gate/sign and an MR
 # is opened.
 sync-ironbank:
@@ -91,7 +91,7 @@ sync-ironbank:
         scripts/sync-ironbank.sh --all --check || echo "manifests differ from Iron Bank development; the scheduled rebuild will sync them";
       fi
   artifacts:
-    paths: [jira/*/hardening_manifest.yaml, confluence/*/hardening_manifest.yaml, bitbucket/*/hardening_manifest.yaml]
+    paths: [jira/lts/hardening_manifest.yaml, confluence/lts/hardening_manifest.yaml, bitbucket/lts/hardening_manifest.yaml]
     expire_in: 1 week
 
 build:
@@ -131,7 +131,7 @@ sign:
     - set -a && . "$OUT_DIR/build.env" && set +a
     - EXTRA_TAGS="$LINE" scripts/sign.sh "${TAG%%:*}@$DIGEST" "$VERSION" "$OUT_DIR/vuln.json" "$OUT_DIR/sbom.cdx.json"
 
-# Daily fast path: scan every live line (its pinned version tag), copa-patch
+# Daily fast path: scan every live LTS line (its pinned version tag), copa-patch
 # what is fixable, re-gate, move the version and line tags, sign.
 patch:
   stage: patch

@@ -6,7 +6,7 @@ PRODUCT ?= jira
 LINE ?= lts
 TARGET := $(PRODUCT)/$(LINE)
 PRODUCTS := jira confluence bitbucket
-LINES := lts latest
+LINES := lts
 
 .PHONY: help lint test build gate patch sign sync pin pin-resources manifest-check pin-base certs eol
 
@@ -19,7 +19,7 @@ lint: ## shellcheck, yamllint, hadolint (if present), ignore-file and EOL checks
 test: ## python unit tests only
 	python3 -m unittest discover -s tests -t . -v
 
-build: ## build+push one line (PRODUCT=jira|confluence|bitbucket LINE=lts|latest)
+build: ## build+push one product's LTS line (PRODUCT=jira|confluence|bitbucket)
 	scripts/build.sh $(TARGET)
 
 gate: ## run the Trivy gate on the image from build.env

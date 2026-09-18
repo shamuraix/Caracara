@@ -1,7 +1,8 @@
-# Iron Bank-style hardening manifest for the LTS line of this product.
+# Iron Bank-style hardening manifest for this product's LTS line (the only
+# line built; Atlassian's LTS lines are what Iron Bank hardens).
 # The single source of truth for what enters the image from outside the UBI
 # repos: scripts/build.sh turns `args` and `resources` into build args and the
-# Dockerfile (../Dockerfile, shared by both lines) verifies every resource with
+# Dockerfile (../Dockerfile) verifies every resource with
 # ADD --checksum.  Pin with scripts/pin-version.sh <product>/<line> <version>
 # (product tarball) and scripts/pin-resource.sh (everything else).
 # Atlassian ships security fixes for the latest Long Term Support line for two
@@ -9,16 +10,15 @@
 # SEED VALUE: the patch version below was chosen offline; re-pin with
 # scripts/pin-version.sh <product>/lts <version> to the newest patch of the line.
 apiVersion: v1
-# Where the version and checksums come from: scripts/sync-ironbank.sh pulls this
-# project's hardening_manifest.yaml from its `development` branch on
-# repo1.dso.mil (through Artifactory's generic-repo1-remote) and rewrites
-# args.VERSION, tags and the PRODUCT resource below (plus tini/git when Iron
-# Bank pins them).  The weekly rebuild runs the sync first, so every build is
-# the version Iron Bank is currently hardening.
+# Where the version and checksums come from: scripts/sync-ironbank.sh clones the
+# `development` branch of this Iron Bank repository (Iron Bank Containers /
+# Atlassian / Jira Data Center / jira-lts) and rewrites args.VERSION,
+# tags and the PRODUCT resource below (plus tini/git when Iron Bank pins them).
+# The weekly rebuild runs the sync first, so every build is the LTS version
+# Iron Bank is currently hardening.  Only LTS lines are built.
 upstream:
   ironbank:
-    # Iron Bank Containers / Atlassian / Jira Data Center / jira-lts
-    project: dsop/atlassian/jira-data-center/jira-lts
+    repo: https://repo1.dso.mil/dsop/atlassian/jira-data-center/jira-lts.git
     ref: development
     manifest: hardening_manifest.yaml
 name: atlassian/jira

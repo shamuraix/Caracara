@@ -30,19 +30,32 @@ IB_MANIFEST = {
 }
 
 
-class UrlTests(unittest.TestCase):
-    def test_every_line_names_its_ironbank_project(self):
+class RepoTests(unittest.TestCase):
+    def test_every_lts_line_names_its_ironbank_git_repo(self):
         for product, group in (("jira", "jira-data-center"), ("confluence", "confluence-data-center"), ("bitbucket", "bitbucket-data-center")):
-            for line in ("lts", "latest"):
-                _, doc = manifest.load(ROOT / product / line)
-                up = ironbank.upstream(doc)
-                self.assertTrue(up["project"].startswith(f"dsop/atlassian/{group}/{product}-"), f"{product}/{line}")
-                self.assertEqual(up["ref"], "development", f"{product}/{line}")
-                if line == "lts":
-                    self.assertTrue(up["project"].endswith(f"{product}-lts"))
-                url = ironbank.raw_url(doc, "art.local")
-                self.assertEqual(url, f"https://art.local/artifactory/generic-repo1-remote/{up['project']}/-/raw/development/hardening_manifest.yaml")
-                self.assertTrue(ironbank.raw_url(doc, direct=True).startswith("https://repo1.dso.mil/dsop/atlassian/"))
+            _, doc = manifest.load(ROOT / product / "lts")
+            up = ironbank.upstream(doc)
+            self.assertEqual(up["repo"], f"https://repo1.dso.mil/dsop/atlassian/{group}/{product}-lts.git", product)
+            self.assertEqual(up["ref"], "development", product)
+            self.assertEqual(up["manifest"], "hardening_manifest.yaml", product)
+            self.assertEqual(ironbank.clone_url(doc), up["repo"])
+            self.assertEqual(ironbank.clone_url(doc, "https://gitlab.example.com/mirrors/"),
+                             f"https://gitlab.example.com/mirrors/dsop/atlassian/{group}/{product}-lts.git")
+
+    def test_legacy_project_key_and_bad_values(self):
+        doc = {"upstream": {"ironbank": {"project": "dsop/atlassian/x/x-lts"}}}
+        self.assertEqual(ironbank.upstream(doc)["repo"], "https://repo1.dso.mil/dsop/atlassian/x/x-lts.git")
+        with self.assertRaises(ironbank.SyncError):
+            ironbank.upstream({"upstream": {"ironbank": {"repo": "not a url"}}})
+        with self.assertRaises(ironbank.SyncError):
+            ironbank.upstream({})
+
+    def test_repo_cli(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = ironbank.main(["repo", str(ROOT / "bitbucket" / "lts")])
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.getvalue().split(), ["https://repo1.dso.mil/dsop/atlassian/bitbucket-data-center/bitbucket-lts.git", "development", "hardening_manifest.yaml"])
 
 
 class ApplyTests(unittest.TestCase):

@@ -33,7 +33,7 @@ Sigstore policy-controller is an equivalent alternative to Kyverno.
 - [ ] Build and pin a ci-tools image (`buildctl`, `trivy`, `copa`, `cosign`, `crane`, `jq`) in `docker-atlassian-local`; Renovate keeps it current
 - [ ] GitLab Runner with the kubernetes executor (`k8s/gitlab-runner/values.yaml`) or Jenkins kubernetes plugin (`k8s/jenkins/pod-template.yaml`) mounting `buildkit-client-certs`; no privileged pods, no Docker socket
 - [ ] Renovate as a Kubernetes CronJob (`k8s/renovate/`): `platform: gitlab`, docker manager for base digests, regex manager for `VERSION`, `hostRules` for Artifactory
-- [ ] Create `generic-repo1-remote` (repo1.dso.mil) and confirm the `upstream.ironbank.project` paths in all six manifests (the `latest` ones point at the non-LTS Iron Bank projects; rename if the group calls them differently); `make sync` pulls every line's version and checksum from Iron Bank's `development` branch
+- [ ] Give runners a way to clone repo1.dso.mil (egress allow-list, or GitLab pull mirrors + `IRONBANK_GIT_BASE`); `make sync` then clones each `<product>-lts.git` `development` branch and adopts its version and checksum
 - [ ] `make manifest-check`, then `scripts/pin-resource.sh <dir> --all` for whatever Iron Bank did not supply (git, copa, crane); the build refuses to run while a `hardening_manifest.yaml` resource has no sha256
 - [ ] `GITLAB_SYNC_TOKEN` (api + write_repository) so the weekly rebuild's sync stage can open its merge request
 - [ ] `.trivyignore.yaml` with mandatory `expired_at` on every entry; CI fails on entries past expiry (`scripts/check_trivyignore.py`)
@@ -45,7 +45,7 @@ Sigstore policy-controller is an equivalent alternative to Kyverno.
 
 - **Daily**: patch job green; any Copa "version lower than required" error triaged same day
 - **Weekly**: rebuild green for all products; review the `unfixed.json` (`will_not_fix`) list for anything Red Hat reclassified; merge Renovate MRs for manifest resources (git on Bitbucket first: it is not Copa-patchable)
-- **Weekly, after the rebuild**: merge the `sync/ironbank-<date>` MR so git matches what was built; set `support_ends` in `support-windows.yaml` when a line moved
+- **Weekly, after the rebuild**: merge the `sync/ironbank-<date>` MR so git matches what was built; set `support_ends` in `support-windows.yaml` when an LTS line moved
 - **Monthly**: merge the Renovate MRs (base digests, tini/git/copa/crane); expire stale ignore entries; merge the UBI minor bump; re-check Trivy has vuln data for the base OS (relevant when moving to UBI 10)
 - **Quarterly**: rehearse an emergency Atlassian advisory: from advisory to signed image in production in under 24h (`scripts/pin-version.sh`, MR, rebuild, `crane tag`)
 - **Yearly, every May 31**: confirm base-OS phase (RHEL 9 full support ends 2027-05-31; maintenance 2032-05-31) and update `support-windows.yaml`

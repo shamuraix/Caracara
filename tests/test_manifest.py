@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import manifest  # noqa: E402
 
 PRODUCTS = ("jira", "confluence", "bitbucket")
-LINES = ("lts", "latest")
+LINES = ("lts",)
 TARGETS = tuple(f"{p}/{l}" for p in PRODUCTS for l in LINES)
 
 
@@ -58,20 +58,17 @@ class ManifestFileTests(unittest.TestCase):
             self.assertIn(doc["args"]["VERSION"], product["url"], t)
             self.assertIn(doc["args"]["ARTEFACT"], product["url"], t)
 
-    def test_lts_and_latest_are_distinct_lines(self):
+    def test_only_lts_lines_exist(self):
         for p in PRODUCTS:
-            _, lts = manifest.load(ROOT / p / "lts")
-            _, latest = manifest.load(ROOT / p / "latest")
-            self.assertNotEqual(lts["args"]["VERSION"], latest["args"]["VERSION"], p)
-            self.assertEqual(lts["args"]["ARTEFACT"], latest["args"]["ARTEFACT"], p)
-            self.assertFalse((ROOT / p / "hardening_manifest.yaml").exists(), f"{p}: manifest must live under lts/ or latest/")
+            self.assertTrue((ROOT / p / "lts" / "hardening_manifest.yaml").exists(), p)
+            self.assertFalse((ROOT / p / "latest").exists(), f"{p}: only LTS lines are built")
+            self.assertFalse((ROOT / p / "hardening_manifest.yaml").exists(), f"{p}: manifest must live under lts/")
 
-    def test_bitbucket_pins_git_source_on_both_lines(self):
-        for line in LINES:
-            _, doc = manifest.load(ROOT / "bitbucket" / line)
-            git = manifest.find_resource(doc, "GIT")
-            self.assertTrue(git["url"].endswith(".tar.xz"), line)
-            self.assertIn("kernel.org", git["url"], line)
+    def test_bitbucket_pins_git_source(self):
+        _, doc = manifest.load(ROOT / "bitbucket" / "lts")
+        git = manifest.find_resource(doc, "GIT")
+        self.assertTrue(git["url"].endswith(".tar.xz"))
+        self.assertIn("kernel.org", git["url"])
 
     def test_ci_tools_resources(self):
         _, doc = manifest.load(ROOT / "ci-tools")

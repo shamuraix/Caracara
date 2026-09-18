@@ -7,17 +7,16 @@ SBOM/provenance attestations at build time.
 
 ## The hardening manifest: resources pinned by URL and sha256
 
-Each product is built on two lines, `<product>/lts/` (Long Term Support) and
-`<product>/latest/` (current feature release), and each line directory
-carries its own `hardening_manifest.yaml` in Iron Bank's format; the
-Dockerfile in the product directory serves both. A manifest's `resources:`
-section is the single source of truth for everything that enters the image
-from outside the UBI repos:
+Each product is built on its Long Term Support line only, from
+`<product>/lts/hardening_manifest.yaml` (Iron Bank's format); the Dockerfile
+lives in the product directory. A manifest's `resources:` section is the
+single source of truth for everything that enters the image from outside the
+UBI repos:
 
 | Image | Resources | How it is used |
 |---|---|---|
-| `<product>/lts`, `<product>/latest` | `PRODUCT` (Atlassian tarball), `TINI_AMD64`, `TINI_ARM64` (upstream release binaries) | tarball extracted to the install dir; tini installed as `/usr/bin/tini` |
-| `bitbucket/lts`, `bitbucket/latest` | `GIT` (kernel.org source tarball) | compiled in the `git-builder` stage and copied to `/opt/git`, as Iron Bank does, so the git version Bitbucket hosts with is chosen here and not by the UBI repo |
+| `<product>/lts` | `PRODUCT` (Atlassian tarball), `TINI_AMD64`, `TINI_ARM64` (upstream release binaries) | tarball extracted to the install dir; tini installed as `/usr/bin/tini` |
+| `bitbucket/lts` | `GIT` (kernel.org source tarball) | compiled in the `git-builder` stage and copied to `/opt/git`, as Iron Bank does, so the git version Bitbucket hosts with is chosen here and not by the UBI repo |
 | ci-tools | `COPA_*`, `CRANE_*` (GitHub release tarballs per arch) | extracted in per-arch fetch stages |
 
 ```yaml
@@ -28,7 +27,7 @@ resources:
     validation: { type: sha256, value: 93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c }
 ```
 
-`scripts/build.sh <product>/<line>` turns `args:` and every resource into build args
+`scripts/build.sh <product>/lts` turns `args:` and every resource into build args
 (`<ARG>_URL`, `<ARG>_SHA256`), rewriting upstream hosts to the Artifactory
 generic remotes (`scripts/manifest.py`, `RESOURCE_MIRRORS` to override the
 map). The Dockerfiles declare those args **without defaults** and fetch each
@@ -40,23 +39,25 @@ per arch and `FROM tini-${TARGETARCH}` to select.
 Pinning:
 
 - **Iron Bank first.** Each manifest's `upstream.ironbank` names the Iron Bank
-  project the line tracks (`dsop/atlassian/<product>-data-center/<product>-lts`
-  for `lts`; the non-LTS project for `latest`) and the branch (`development`).
-  `scripts/sync-ironbank.sh <product>/<line> | --all` fetches that project's
-  `hardening_manifest.yaml` through Artifactory's `generic-repo1-remote` and
-  `scripts/ironbank.py apply` rewrites ours: `args.VERSION`, `tags`, the
+  git repository the line tracks, as a clone URL
+  (`https://repo1.dso.mil/dsop/atlassian/<product>-data-center/<product>-lts.git`)
+  plus `ref: development` and the manifest path.
+  `scripts/sync-ironbank.sh <product>/lts | --all` shallow-clones that branch
+  (`IRONBANK_GIT_BASE` rewrites the repo1 prefix to a GitLab pull mirror when
+  runners have no egress; `IRONBANK_GIT_TOKEN` authenticates a private group)
+  and `scripts/ironbank.py apply` rewrites ours: `args.VERSION`, `tags`, the
   `PRODUCT` url and sha256 (the one Iron Bank's pipeline verified), and any
   resource Iron Bank pins under the same filename shape (tini, git). Nothing
   else is touched, and the result is idempotent. `--open-mr` commits the
   change on a `sync/ironbank-<date>` branch and opens a merge request.
-- `scripts/pin-version.sh <product>/<line> <version>` is the manual override:
+- `scripts/pin-version.sh <product>/lts <version>` is the manual override:
   it sets `args.VERSION` and `tags` (`[version, line]`), points `PRODUCT` at
   the new tarball and stores the sha256 from Atlassian's published `.sha256`
   file (no tarball download). Use it for an emergency advisory before Iron
   Bank's development branch has moved; the next sync will overwrite it once
   Iron Bank catches up.
-  Each line's `args` can differ (`JAVA_PACKAGE`, `ARTEFACT`); today every line
-  runs Java 21, but a line on an older major would set 17 here.
+  `args` (`JAVA_PACKAGE`, `ARTEFACT`) are per manifest; every current LTS line
+  runs Java 21.
 - `scripts/pin-resource.sh <dir> <ARG>... | --all` downloads each resource
   through Artifactory, computes its sha256, cross-checks it against the
   upstream's sidecar checksum (`.sha256`, `.sha256sum`, kernel.org's
@@ -120,7 +121,7 @@ All seen in the Iron Bank Dockerfile history:
 
 ## Invocation
 
-`scripts/build.sh <product>/<line>` runs, against the shared daemon:
+`scripts/build.sh <product>/lts` runs, against the shared daemon:
 
 ```sh
 buildctl --tlscacert /certs/ca.pem --tlscert /certs/cert.pem --tlskey /certs/key.pem \

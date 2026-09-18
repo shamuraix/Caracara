@@ -40,9 +40,9 @@
     },
     {
       "customType": "regex",
-      "description": "git source tarball in bitbucket/<line>/hardening_manifest.yaml (version is in the filename, not a path segment)",
+      "description": "git source tarball in bitbucket/lts/hardening_manifest.yaml (version is in the filename, not a path segment)",
       "managerFilePatterns": [
-        "/^bitbucket/(lts|latest)/hardening_manifest\\.yaml$/"
+        "/^bitbucket/lts/hardening_manifest\\.yaml$/"
       ],
       "matchStrings": [
         "url:\\s*https://mirrors\\.edge\\.kernel\\.org/pub/software/scm/git/git-(?<currentValue>\\d+\\.\\d+\\.\\d+)\\.tar\\.xz"

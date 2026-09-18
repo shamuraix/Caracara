@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """Sync a line's hardening_manifest.yaml from its Iron Bank upstream project.
 
-Each of our manifests names the Iron Bank project it tracks:
+Each of our manifests names the Iron Bank git repository it tracks:
 
     upstream:
       ironbank:
-        project: dsop/atlassian/bitbucket-data-center/bitbucket-lts   # Iron Bank Containers / Atlassian / Bitbucket Data Center / bitbucket-lts
+        repo: https://repo1.dso.mil/dsop/atlassian/bitbucket-data-center/bitbucket-lts.git
         ref: development
         manifest: hardening_manifest.yaml
 
-`url <target>` prints the raw URL of that manifest on repo1.dso.mil (mirrored
-through Artifactory unless --direct); `apply <target> <file>` reads a
-downloaded Iron Bank manifest and updates ours: args.VERSION and tags from the
-product version Iron Bank pins, the PRODUCT resource's url and sha256 from the
-product-downloads.atlassian.com tarball Iron Bank verifies, and any other
-resource whose filename Iron Bank also pins (tini, git).  Exit 0 and print
-"changed"/"unchanged"; exit 2 on a manifest we cannot interpret.
+`repo <target>` prints "<repo> <ref> <manifest>" for sync-ironbank.sh to
+clone (IRONBANK_GIT_BASE rewrites the https://repo1.dso.mil/ prefix to a
+mirror); `apply <target> <file>` reads the manifest from that checkout and
+updates ours: args.VERSION and tags from the product version Iron Bank pins,
+the PRODUCT resource's url and sha256 from the product-downloads.atlassian.com
+tarball Iron Bank verifies, and any other resource whose filename Iron Bank
+also pins (tini, git).  Exit 0 and print "changed"/"unchanged"; exit 2 on a
+manifest we cannot interpret.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ import manifest  # noqa: E402
 
 REPO1 = "https://repo1.dso.mil"
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
+GIT_URL = re.compile(r"^(https://|ssh://|git@)[^\s]+$")
 
 
 class SyncError(RuntimeError):
@@ -40,18 +42,24 @@ class SyncError(RuntimeError):
 
 
 def upstream(doc: dict) -> dict:
-    up = ((doc.get("upstream") or {}).get("ironbank")) or {}
-    if not up.get("project"):
-        raise SyncError("manifest has no upstream.ironbank.project")
+    up = dict(((doc.get("upstream") or {}).get("ironbank")) or {})
+    if not up.get("repo") and up.get("project"):
+        up["repo"] = f"{REPO1}/{str(up['project']).strip('/')}.git"
+    if not up.get("repo"):
+        raise SyncError("manifest has no upstream.ironbank.repo (git URL of the Iron Bank project)")
+    if not GIT_URL.match(str(up["repo"])):
+        raise SyncError(f"upstream.ironbank.repo is not a git URL: {up['repo']!r}")
     up.setdefault("ref", "development")
     up.setdefault("manifest", "hardening_manifest.yaml")
     return up
 
 
-def raw_url(doc: dict, art: str | None = None, direct: bool = False) -> str:
-    up = upstream(doc)
-    url = f"{REPO1}/{up['project'].strip('/')}/-/raw/{up['ref']}/{up['manifest']}"
-    return manifest.mirror_url(url, art, direct)
+def clone_url(doc: dict, base: str | None = None) -> str:
+    """The repo URL, with https://repo1.dso.mil/ rewritten to `base` (a mirror) when given."""
+    repo = str(upstream(doc)["repo"])
+    if base and repo.startswith(REPO1 + "/"):
+        return base.rstrip("/") + "/" + repo[len(REPO1) + 1:]
+    return repo
 
 
 def ib_product_resource(ib: dict) -> dict:
@@ -134,16 +142,17 @@ def apply(ours: dict, ib: dict, line: str) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("url"); p.add_argument("target"); p.add_argument("--art"); p.add_argument("--direct", action="store_true")
+    p = sub.add_parser("repo"); p.add_argument("target"); p.add_argument("--base", default=None)
     p = sub.add_parser("apply"); p.add_argument("target"); p.add_argument("file")
     a = ap.parse_args(argv)
 
     path, ours = manifest.load(a.target)
-    if a.cmd == "url":
-        print(raw_url(ours, a.art, a.direct))
+    if a.cmd == "repo":
+        up = upstream(ours)
+        print(clone_url(ours, a.base), up["ref"], up["manifest"])
         return 0
     ib = yaml.safe_load(Path(a.file).read_text()) or {}
-    line = Path(a.target).name if "/" in a.target.strip("/") else "latest"
+    line = Path(a.target).name if "/" in a.target.strip("/") else "lts"
     changes = apply(ours, ib, line)
     if changes:
         manifest.save(path, ours)
@@ -151,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
         for c in changes:
             print(f"  - {c}")
     else:
-        print(f"unchanged {path} (Iron Bank {upstream(ours)['project']}@{upstream(ours)['ref']} pins {ours['args']['VERSION']})")
+        print(f"unchanged {path} (Iron Bank {upstream(ours)['repo']}@{upstream(ours)['ref']} pins {ours['args']['VERSION']})")
     return 0
 
 

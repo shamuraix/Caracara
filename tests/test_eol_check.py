@@ -42,10 +42,9 @@ class EvaluateTests(unittest.TestCase):
         import yaml
         doc = yaml.safe_load((ROOT / "support-windows.yaml").read_text())
         for product in ("jira", "confluence", "bitbucket"):
-            for line in ("lts", "latest"):
-                self.assertIn(line, doc["products"][product], f"{product}/{line}")
-                _, mdoc = __import__("manifest").load(ROOT / product / line)
-                self.assertTrue(mdoc["args"]["VERSION"].startswith(doc["products"][product][line]["line"] + "."), f"{product}/{line}")
+            self.assertEqual(list(doc["products"][product]), ["lts"], product)
+            _, mdoc = __import__("manifest").load(ROOT / product / "lts")
+            self.assertTrue(mdoc["args"]["VERSION"].startswith(doc["products"][product]["lts"]["line"] + "."), product)
 
     def test_repo_file(self):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):

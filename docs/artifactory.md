@@ -16,10 +16,20 @@ through; `scripts/manifest.py` rewrites the upstream URLs in each
 | `generic-atlassian-remote` | Generic remote | `https://product-downloads.atlassian.com` | `ADD --checksum` of the product tarball, `scripts/pin-version.sh` |
 | `generic-github-remote` | Generic remote | `https://github.com` (release assets) | `tini` binaries in every product image; `copa` and `crane` tarballs in ci-tools (`hardening_manifest.yaml` resources) |
 | `generic-kernel-remote` | Generic remote | `https://mirrors.edge.kernel.org` | git source tarball for Bitbucket (`hardening_manifest.yaml` resource) |
-| `generic-repo1-remote` | Generic remote | `https://repo1.dso.mil` (Iron Bank GitLab; raw files need your registry1/repo1 token if the group is not public) | `scripts/sync-ironbank.sh` reading each line's upstream `hardening_manifest.yaml` from its `development` branch |
 | `pypi-remote` | PyPI remote | `https://pypi.org` | `yamllint`, `shellcheck-py` in ci-tools (lint stage) |
 | `docker-atlassian-local` | Docker local | Your built, patched, signed images, the ci-tools image and the BuildKit registry cache (`cache/<product>`) | `--output`, `copa --push`, deploys |
 | `docker` | Docker virtual | All of the above | Single pull endpoint for clusters |
+
+## Iron Bank source repositories
+
+`scripts/sync-ironbank.sh` clones git repositories on `repo1.dso.mil`
+(`https://repo1.dso.mil/dsop/atlassian/<product>-data-center/<product>-lts.git`,
+branch `development`), which Artifactory generic remotes cannot serve. Either
+allow the CI runner namespace egress to `repo1.dso.mil:443`, or create GitLab
+**pull mirrors** of the three Iron Bank projects in your own GitLab (for
+example under `mirrors/dsop/atlassian/...`) and set
+`IRONBANK_GIT_BASE=https://gitlab.example.com/mirrors/` so the sync clones
+from there. `IRONBANK_GIT_TOKEN` supplies a token for private groups.
 
 ## Credentials
 

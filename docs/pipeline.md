@@ -15,11 +15,11 @@ flowchart LR
 | Trigger | Action | Output |
 |---|---|---|
 | Renovate MR: base digest or a manifest resource (tini, git, copa, crane) bumped | Full rebuild on the MR, merge, rebuild on main | New `X.Y.Z-<pipeline id>` tag, version tag moved |
-| Iron Bank moves a line (new version on the upstream project's `development` branch) | `sync-ironbank` stage of the weekly rebuild adopts it, builds it, opens an MR | New `X.Y.Z-<pipeline id>` tag; `X.Y.Z` and line tag moved; MR `sync/ironbank-<date>` |
-| GitLab pipeline schedule / Jenkins `cron('H 2 * * 0')` with `JOB=rebuild` | Full rebuild of every supported line: `PRODUCT x LINE` = jira, confluence, bitbucket x lts, latest | New `X.Y.Z-<pipeline id>` tag; `X.Y.Z` and the line tag moved |
+| Iron Bank moves a line (new version on `<product>-lts.git`'s `development` branch) | `sync-ironbank` stage of the weekly rebuild clones it, adopts it, builds it, opens an MR | New `X.Y.Z-<pipeline id>` tag; `X.Y.Z` and `lts` tags moved; MR `sync/ironbank-<date>` |
+| GitLab pipeline schedule / Jenkins `cron('H 2 * * 0')` with `JOB=rebuild` | Sync from Iron Bank, then full rebuild of every LTS line: `PRODUCT x LINE` = jira, confluence, bitbucket x lts | New `X.Y.Z-<pipeline id>` tag; `X.Y.Z` and `lts` tags moved |
 | GitLab pipeline schedule / Jenkins `cron('H 6 * * *')` with `JOB=patch` | Trivy on each live line's version tag; if fixable OS CVEs, `copa patch` and re-gate | Version and line tags moved to the patched digest |
 | Trivy `--exit-on-eol` returns 2 | Fail and open a GitLab issue: base OS reached EOL, bump major | Issue |
-| Atlassian security advisory feed | Normally Iron Bank's development branch moves within days and the next sync picks it up; for an emergency, `scripts/pin-version.sh <product>/<line> <version>` in a hand-made MR | MR, then rebuild |
+| Atlassian security advisory feed | Normally Iron Bank's development branch moves within days and the next sync picks it up; for an emergency, `scripts/pin-version.sh <product>/lts <version>` in a hand-made MR | MR, then rebuild |
 
 ## The shared daemon
 
@@ -46,19 +46,19 @@ credentials.
 
 `.gitlab-ci.yml`, stages `lint, sync, build, gate, sign, patch`. Two schedules
 set `JOB=rebuild` (weekly) and `JOB=patch` (daily). The `sync-ironbank` job
-runs on every rebuild pipeline: on the schedule it pulls each line's version
-and checksums from its Iron Bank upstream, passes the updated manifests to the
-later stages as artifacts (GitLab restores them over the checkout, so the
+runs on every rebuild pipeline: on the schedule it clones each LTS line's Iron
+Bank repository (`development`), adopts its version and checksums, passes the
+updated manifests to the later stages as artifacts (GitLab restores them over the checkout, so the
 rebuild is what Iron Bank is hardening right now) and opens a merge request
 with `GITLAB_SYNC_TOKEN`; on merge requests and pushes it only reports drift.
-The matrix is `PRODUCT x LINE`
-and each job works on `TARGET=$PRODUCT/$LINE` (the directory holding that
-line's `hardening_manifest.yaml`). The `build` job writes
+The matrix is `PRODUCT x LINE` (with
+`LINE = lts`) and each job works on `TARGET=$PRODUCT/$LINE` (the directory
+holding that line's `hardening_manifest.yaml`). The `build` job writes
 `out/<product>-<line>/build.env` (`TARGET`, `PRODUCT`, `LINE`, `TAG`,
 `VERSION`, `DIGEST`) as a plain artifact; `gate` and `sign` source it. Signing
 is keyless with the GitLab OIDC token (`id_tokens: SIGSTORE_ID_TOKEN`) and
-`EXTRA_TAGS=$LINE` makes `sign.sh` move the `lts`/`latest` tag along with the
-version tag.
+`EXTRA_TAGS=$LINE` makes `sign.sh` move the `lts` tag along with the version
+tag.
 
 ## Jenkins
 
@@ -84,6 +84,6 @@ Kyverno policy accepts either the GitLab keyless identity or that key.
 |---|---|---|
 | `jira:11.3.11-<pipeline>` | no | one rebuild |
 | `jira:11.3.11` | yes | latest signed digest for this version (rebuild or patch) |
-| `jira:lts`, `jira:latest` | yes | the line tags (`<product>/lts`, `<product>/latest`); what deployments reference |
+| `jira:lts` | yes | the line tag (`<product>/lts`); what deployments reference |
 | `jira:11.3.11-patched`, `jira:11.3.11-patched-<date>` | working / history | Copa outputs; cleaned by retention |
-| `cache/jira` | n/a | BuildKit registry cache (shared by both lines) |
+| `cache/jira` | n/a | BuildKit registry cache |

@@ -42,7 +42,6 @@ DEFAULT_MIRRORS = {
     "mirrors.edge.kernel.org": "{art}/artifactory/generic-kernel-remote",
     "www.kernel.org": "{art}/artifactory/generic-kernel-remote",
     "cdn.kernel.org": "{art}/artifactory/generic-kernel-remote",
-    "repo1.dso.mil": "{art}/artifactory/generic-repo1-remote",
 }
 
 

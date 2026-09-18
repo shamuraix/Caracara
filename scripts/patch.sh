@@ -4,14 +4,14 @@
 # and line tags and sign.  Exits 0 without doing anything when the image is
 # already clean.
 #
-# Usage: scripts/patch.sh <product>/<lts|latest>   e.g. jira/lts
+# Usage: scripts/patch.sh <product>/lts   e.g. jira/lts
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck source=scripts/lib.sh
 source scripts/lib.sh
 need trivy copa crane cosign jq
 
-target="${1:?target (<product>/<line>)}"
+target="${1:?target (<product>/lts)}"
 product_dir "${target}" >/dev/null
 name="$(target_product "${target}")"
 line="$(target_line "${target}")"

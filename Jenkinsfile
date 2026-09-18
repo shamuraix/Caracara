@@ -1,4 +1,4 @@
-// Weekly rebuild + gate + sign for every product line, LTS and latest (Jenkins kubernetes plugin).
+// Weekly rebuild + gate + sign for every product's LTS line (Jenkins kubernetes plugin).
 // The agent pod is the same ci-tools image the GitLab pipeline uses, with the
 // buildkit-client-certs Secret mounted at /certs.  A second job
 // (Jenkinsfile.patch) runs the daily Copa fast path with its own cron.
@@ -71,9 +71,9 @@ spec:
     stage('lint') {
       steps { sh 'scripts/lint.sh' }
     }
-    // Pull each line's version and checksums from its Iron Bank upstream
-    // project (development branch) so this rebuild is what Iron Bank is
-    // hardening now; the MR brings git up to date.
+    // Clone each LTS line's Iron Bank upstream repository (development
+    // branch) and adopt its version and checksums, so this rebuild is what
+    // Iron Bank is hardening now; the MR brings git up to date.
     stage('sync-ironbank') {
       steps { sh 'scripts/sync-ironbank.sh --all --open-mr; git checkout -q -- . 2>/dev/null || true' }
     }
@@ -81,7 +81,7 @@ spec:
       matrix {
         axes {
           axis { name 'PRODUCT'; values 'jira', 'confluence', 'bitbucket' }
-          axis { name 'LINE'; values 'lts', 'latest' }
+          axis { name 'LINE'; values 'lts' }  // LTS lines only (what Iron Bank hardens)
         }
         stages {
           stage('product') {

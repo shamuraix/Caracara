@@ -3,7 +3,7 @@
 #
 # Resources (product tarball, tini) come from hardening_manifest.yaml via
 # scripts/build.sh as <ARG>_URL / <ARG>_SHA256 build args; ADD --checksum
-# verifies each one.  Build from the repository root: scripts/build.sh confluence/lts (or confluence/latest)
+# verifies each one.  Build from the repository root: scripts/build.sh confluence/lts
 ARG ART=artifactory.example.com
 ARG TARGETARCH
 

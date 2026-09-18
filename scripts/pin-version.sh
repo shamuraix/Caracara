@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Pin an Atlassian product version in <product>/<line>/hardening_manifest.yaml:
+# Pin an Atlassian product version in <product>/lts/hardening_manifest.yaml:
 # sets args.VERSION and tags (version + line), points the PRODUCT resource at
 # the new tarball and stores its sha256 from the vendor's published .sha256
 # file (fetched through the Artifactory generic remote; DOWNLOAD_DIRECT=true
 # to go to product-downloads.atlassian.com).  The tarball itself is not
 # downloaded.  Renovate runs this as a postUpgradeTask.
 #
-# Usage: scripts/pin-version.sh <jira|confluence|bitbucket>/<lts|latest> <version>
+# Usage: scripts/pin-version.sh <jira|confluence|bitbucket>/lts <version>
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck source=scripts/lib.sh
 source scripts/lib.sh
 need curl python3
 
-target="${1:?target (<product>/<line>)}"
+target="${1:?target (<product>/lts)}"
 version="${2:?version}"
 product_dir "${target}" >/dev/null
 product="$(target_product "${target}")"
