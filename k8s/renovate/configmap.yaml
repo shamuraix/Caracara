@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: renovate-config
+  namespace: renovate
+data:
+  config.js: |
+    // Global (self-hosted) Renovate config.  Repository-level rules live in
+    // renovate.json inside the repo.
+    const art = process.env.ART || "artifactory.example.com";
+    module.exports = {
+      platform: "gitlab",
+      endpoint: process.env.RENOVATE_ENDPOINT,
+      gitAuthor: "Renovate Bot <renovate@example.com>",
+      repositories: (process.env.RENOVATE_REPOSITORIES || "").split(",").filter(Boolean),
+      binarySource: "install",
+      // postUpgradeTasks run scripts/pin-version.sh inside the Renovate pod;
+      // both are allow-listed explicitly.
+      allowedCommands: ["^scripts/pin-version\\.sh (jira|confluence|bitbucket) [0-9.]+$"],
+      allowScripts: false,
+      // Everything the datasources touch goes through Artifactory.
+      hostRules: [
+        {
+          matchHost: art,
+          hostType: "docker",
+          username: process.env.ARTIFACTORY_USER,
+          password: process.env.ARTIFACTORY_TOKEN,
+        },
+        {
+          matchHost: art,
+          username: process.env.ARTIFACTORY_USER,
+          password: process.env.ARTIFACTORY_TOKEN,
+        },
+      ],
+      dockerImagePrefix: `${art}/docker-hub-remote`,
+      persistRepoData: false,
+      onboarding: false,
+      requireConfig: "required",
+    };

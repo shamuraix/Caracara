@@ -1,0 +1,44 @@
+import contextlib
+import datetime as dt
+import io
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import eol_check as ec  # noqa: E402
+
+TODAY = dt.date(2026, 9, 18)
+DOC = {
+    "base_os": {"name": "UBI 9", "full_support_ends": "2027-05-31", "maintenance_ends": "2032-05-31"},
+    "products": {
+        "jira": {"line": "11.3", "lts": False, "support_ends": None},
+        "confluence": {"line": "9.2", "lts": True, "support_ends": "2026-10-10"},
+        "bitbucket": {"line": "9.4", "lts": True, "support_ends": "2026-09-01"},
+    },
+}
+
+
+class EvaluateTests(unittest.TestCase):
+    def test_statuses(self):
+        rows = {(r["name"], r["phase"]): r for r in ec.evaluate(DOC, TODAY, 90, 30)}
+        self.assertEqual(rows[("UBI 9", "full support")]["status"], "ok")
+        self.assertEqual(rows[("UBI 9", "maintenance")]["days"], (dt.date(2032, 5, 31) - TODAY).days)
+        self.assertEqual(rows[("jira 11.3", "feature release")]["status"], "unknown")
+        self.assertEqual(rows[("confluence 9.2", "LTS")]["status"], "fail")
+        self.assertEqual(rows[("bitbucket 9.4", "LTS")]["status"], "expired")
+
+    def test_warn_band(self):
+        doc = {"products": {"p": {"line": "1", "support_ends": (TODAY + dt.timedelta(days=60)).isoformat()}}}
+        self.assertEqual(ec.evaluate(doc, TODAY, 90, 30)[0]["status"], "warn")
+
+    def test_repo_file(self):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            rc = ec.main([str(ROOT / "support-windows.yaml"), "--today", "2026-09-18"])
+        self.assertEqual(rc, 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,11 @@
+.git
+.gitlab-ci.yml
+Jenkinsfile*
+docs
+k8s
+tests
+scripts
+ci-tools
+*.md
+.trivyignore.yaml
+renovate.json

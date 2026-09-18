@@ -1,0 +1,36 @@
+# Helm values for gitlab/gitlab-runner (kubernetes executor).  The only
+# non-default requirement is mounting the buildkit-client-certs Secret at
+# /certs in every job pod; no privileged pods, no Docker socket.
+gitlabUrl: https://gitlab.example.com
+runnerToken: ""  # from a Secret in a real deployment (runners.secret)
+concurrent: 6
+rbac:
+  create: true
+runners:
+  config: |
+    [[runners]]
+      name = "k8s"
+      executor = "kubernetes"
+      [runners.kubernetes]
+        namespace = "gitlab-runner"
+        image = "artifactory.example.com/docker-atlassian-local/ci-tools:latest"
+        privileged = false
+        allow_privilege_escalation = false
+        run_as_user = 1000
+        run_as_group = 1000
+        fs_group = 1000
+        cpu_request = "1"
+        memory_request = "2Gi"
+        memory_limit = "4Gi"
+        [runners.kubernetes.node_selector]
+          "kubernetes.io/arch" = "amd64"
+        [[runners.kubernetes.volumes.secret]]
+          name = "buildkit-client-certs"
+          mount_path = "/certs"
+          read_only = true
+          # With cert-manager-issued certs rename the keys:
+          # [runners.kubernetes.volumes.secret.items]
+          #   "ca.crt" = "ca.pem"
+          #   "tls.crt" = "cert.pem"
+          #   "tls.key" = "key.pem"
+  tags: "k8s"

@@ -1,0 +1,121 @@
+# Continuously patched Atlassian images: lint -> build -> gate -> sign (rebuild
+# path) and patch (daily fast path).  Every job is a Kubernetes pod running the
+# ci-tools image; builds go to the shared rootless buildkitd over mTLS.
+#
+# Pipeline schedules (CI/CD > Schedules):
+#   weekly rebuild   cron "0 2 * * 0"   variable JOB=rebuild
+#   daily patch      cron "0 6 * * *"   variable JOB=patch
+# Required CI/CD variables (masked): ART_DOCKER_CONFIG (docker config.json for
+# Artifactory push/pull), GITLAB_ISSUE_TOKEN (optional, project token with api scope).
+# The runner mounts the buildkit-client-certs Secret at /certs
+# ([[runners.kubernetes.volumes.secret]] in k8s/gitlab-runner/values.yaml).
+#
+# Per-product state travels between stages as out/<product>/build.env (TAG,
+# VERSION, DIGEST) rather than a dotenv report, so the three matrix jobs never
+# overwrite each other's variables.
+
+variables:
+  ART: artifactory.example.com
+  REPO: $ART/docker-atlassian-local
+  BUILDKIT_HOST: tcp://buildkitd.buildkit.svc:1234
+  BUILDKIT_CERTS: /certs
+  TRIVY_DB_REPOSITORY: $ART/docker-ghcr-remote/aquasecurity/trivy-db
+  TRIVY_JAVA_DB_REPOSITORY: $ART/docker-ghcr-remote/aquasecurity/trivy-java-db
+  PLATFORMS: linux/amd64,linux/arm64
+  SEVERITY: HIGH,CRITICAL
+  CI_TOOLS_TAG: latest  # pin to a digest-tagged ci-tools build; Renovate keeps it current
+  GIT_DEPTH: "1"
+
+default:
+  image: $ART/docker-atlassian-local/ci-tools:$CI_TOOLS_TAG
+  tags: [k8s]  # runner with the kubernetes executor
+  interruptible: true
+  before_script:
+    - mkdir -p ~/.docker && echo "$ART_DOCKER_CONFIG" > ~/.docker/config.json  # masked CI variable
+    - cd "$CI_PROJECT_DIR"
+
+stages: [lint, build, gate, sign, patch]
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+.product-matrix:
+  parallel:
+    matrix:
+      - PRODUCT: [jira, confluence, bitbucket]
+  variables:
+    OUT_DIR: out/$PRODUCT
+
+.rebuild-rules:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $JOB == "rebuild"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web" && $JOB == "rebuild"
+
+lint:
+  stage: lint
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - scripts/lint.sh
+
+build:
+  stage: build
+  extends: [.product-matrix, .rebuild-rules]
+  script:
+    - mkdir -p "$OUT_DIR"
+    - scripts/build.sh "$PRODUCT" "$CI_PIPELINE_IID"
+  artifacts:
+    paths: [out/]
+    expire_in: 1 month
+
+gate:
+  stage: gate
+  extends: [.product-matrix, .rebuild-rules]
+  needs: [build]
+  script:
+    - set -a && . "$OUT_DIR/build.env" && set +a
+    - scripts/gate.sh "$TAG"
+  artifacts:
+    when: always
+    paths: [out/]
+    expire_in: 1 month
+
+sign:
+  stage: sign
+  extends: [.product-matrix]
+  needs: [build, gate]
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $JOB == "rebuild"
+    - if: $CI_PIPELINE_SOURCE == "web" && $JOB == "rebuild"
+  id_tokens:
+    SIGSTORE_ID_TOKEN: { aud: sigstore }  # keyless signing via GitLab OIDC
+  script:
+    - set -a && . "$OUT_DIR/build.env" && set +a
+    - scripts/sign.sh "${TAG%%:*}@$DIGEST" "$VERSION" "$OUT_DIR/vuln.json" "$OUT_DIR/sbom.cdx.json"
+
+# Daily fast path: scan every live version tag, copa-patch what is fixable,
+# re-gate, move the tag, sign.  Independent of the rebuild matrix on purpose.
+patch:
+  stage: patch
+  extends: [.product-matrix]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $JOB == "patch"
+    - if: $CI_PIPELINE_SOURCE == "web" && $JOB == "patch"
+  id_tokens:
+    SIGSTORE_ID_TOKEN: { aud: sigstore }
+  script:
+    - mkdir -p "$OUT_DIR"
+    - scripts/patch.sh "$PRODUCT:$(tr -d '[:space:]' < "$PRODUCT/VERSION")"
+  artifacts:
+    when: always
+    paths: [out/]
+    expire_in: 1 month

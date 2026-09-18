@@ -1,0 +1,26 @@
+# The real EOL clock.  scripts/eol_check.py reads this in every pipeline and
+# fails when a window is expired or within 30 days.  Update it when bumping a
+# product line or the base OS.  Sources: endoflife.date/rhel (Red Hat product
+# life cycle) and Atlassian's Data Center bug-fix / LTS policy.
+base_os:
+  name: RHEL 9 / UBI 9
+  full_support_ends: 2027-05-31
+  maintenance_ends: 2032-05-31
+products:
+  jira:
+    line: "11.3"
+    lts: false
+    # Feature releases are supported until the next feature release plus the
+    # bug-fix window; set this from Atlassian's release notes when you pin a
+    # line.  `null` reports as "unknown" (warning only).
+    support_ends: null
+    note: "set from https://confluence.atlassian.com/jirasoftware/jira-software-release-notes"
+  confluence:
+    line: "9.2"
+    lts: true
+    # LTS lines get security fixes for two years from the .0 release.
+    support_ends: 2026-12-11
+  bitbucket:
+    line: "9.4"
+    lts: true
+    support_ends: 2027-01-21

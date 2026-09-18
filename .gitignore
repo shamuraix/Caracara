@@ -1,0 +1,14 @@
+# pipeline outputs
+build.env
+meta-*.json
+report-*.json
+vuln.json
+sbom.cdx.json
+unfixed.json
+certs/
+# local tooling
+__pycache__/
+*.pyc
+.venv/
+.cache/
+out/

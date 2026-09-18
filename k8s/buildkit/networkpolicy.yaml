@@ -1,0 +1,32 @@
+# Only CI job pods may talk to the daemon; the daemon itself only needs
+# Artifactory (and DNS).  Adjust the namespace selectors to your runner and
+# Jenkins agent namespaces and the egress CIDR to Artifactory's address.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: buildkitd
+  namespace: buildkit
+spec:
+  podSelector:
+    matchLabels: { app: buildkitd }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: gitlab-runner }
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: jenkins }
+      ports:
+        - { protocol: TCP, port: 1234 }
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    - to:
+        - ipBlock: { cidr: 10.0.0.0/8 }  # Artifactory
+      ports:
+        - { protocol: TCP, port: 443 }

@@ -1,0 +1,64 @@
+# Optional: cert-manager-issued mTLS certificates instead of the bootstrap
+# script (scripts/gen-buildkit-certs.sh).  Creates the same two Secrets the
+# StatefulSet and the CI pods expect, with automatic rotation.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: buildkit-selfsigned
+  namespace: buildkit
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: buildkit-ca
+  namespace: buildkit
+spec:
+  isCA: true
+  commonName: buildkit-ca
+  secretName: buildkit-ca
+  privateKey: { algorithm: ECDSA, size: 256 }
+  issuerRef: { name: buildkit-selfsigned, kind: Issuer }
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: buildkit-ca
+  namespace: buildkit
+spec:
+  ca: { secretName: buildkit-ca }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: buildkitd-server
+  namespace: buildkit
+spec:
+  secretName: buildkitd-server-certs
+  commonName: buildkitd.buildkit.svc
+  dnsNames: [buildkitd, buildkitd.buildkit, buildkitd.buildkit.svc, buildkitd.buildkit.svc.cluster.local]
+  usages: [server auth]
+  duration: 2160h
+  renewBefore: 360h
+  secretTemplate:
+    labels: { app: buildkitd }
+  additionalOutputFormats:
+    - type: CombinedPEM
+  issuerRef: { name: buildkit-ca, kind: Issuer }
+---
+# Client certificate.  buildctl/copa expect ca.pem/cert.pem/key.pem; cert-manager
+# writes ca.crt/tls.crt/tls.key, so mount the Secret with `items:` renaming the
+# keys (see the runner and Jenkins pod examples in docs/pipeline.md).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: buildkit-client
+  namespace: buildkit
+spec:
+  secretName: buildkit-client-certs
+  commonName: buildkit-client
+  usages: [client auth]
+  duration: 2160h
+  renewBefore: 360h
+  issuerRef: { name: buildkit-ca, kind: Issuer }

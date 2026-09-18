@@ -1,0 +1,17 @@
+# Time-boxed Trivy exceptions.  Rules (enforced by scripts/check_trivyignore.py
+# in the lint stage, and reviewed in the merge request that adds them):
+#   * every entry has an `id`, a `statement` (why it is not exploitable here or
+#     who tracks the fix) and an `expired_at` no more than 90 days out;
+#   * entries past `expired_at` fail the pipeline until removed or renewed;
+#   * never a global suppress: scope with `paths:` where possible.
+# Prefer a VEX statement (docs/scanning.md) for "not affected" findings that
+# Atlassian or Red Hat have assessed; use this file for time-boxed deferrals.
+#
+# Example:
+# vulnerabilities:
+#   - id: CVE-2026-12345
+#     paths:
+#       - "opt/atlassian/jira/atlassian-jira/WEB-INF/lib/example-1.2.3.jar"
+#     statement: "Atlassian advisory ATLAS-1234 states Jira does not use the vulnerable code path; fixed in 11.3.12 (JIRA-1 tracks the bump)"
+#     expired_at: 2026-12-01
+vulnerabilities: []

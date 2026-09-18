@@ -1,0 +1,79 @@
+# Admission gate: pods in the atlassian namespace may only run images from our
+# Artifactory repos that (1) carry a signature from the GitLab sign job
+# (keyless) or the Jenkins cosign key, (2) have a CycloneDX SBOM attestation
+# and (3) have a vulnerability attestation that passed and is younger than 7
+# days.  The freshness condition is what stops a node from running a 90-day-old
+# digest forever.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: atlassian-images
+spec:
+  validationFailureAction: Enforce
+  background: false
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: signed-by-pipeline
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [atlassian]
+      verifyImages:
+        - imageReferences:
+            - "artifactory.example.com/docker/atlassian/*"
+            - "artifactory.example.com/docker-atlassian-local/*"
+          mutateDigest: true
+          verifyDigest: true
+          required: true
+          attestors:
+            - count: 1
+              entries:
+                # GitLab CI keyless: identity is the project + ref that ran the sign job.
+                - keyless:
+                    issuer: "https://gitlab.example.com"
+                    subject: "https://gitlab.example.com/platform/atlassian-images//.gitlab-ci.yml@refs/heads/main"
+                    # Private Sigstore (Rekor/Fulcio behind Artifactory or self-hosted):
+                    # rekor: { url: https://rekor.example.com }
+                    # roots: |-
+                    #   -----BEGIN CERTIFICATE-----
+                    #   ...
+                # Jenkins: public half of the cosign key held in Jenkins credentials / KMS.
+                - keys:
+                    publicKeys: |-
+                      -----BEGIN PUBLIC KEY-----
+                      REPLACE-WITH-JENKINS-COSIGN-PUBLIC-KEY
+                      -----END PUBLIC KEY-----
+          attestations:
+            - type: https://cyclonedx.org/bom  # SBOM must be attached
+              attestors:
+                - count: 1
+                  entries:
+                    - keyless:
+                        issuer: "https://gitlab.example.com"
+                        subject: "https://gitlab.example.com/platform/atlassian-images//.gitlab-ci.yml@refs/heads/main"
+                    - keys:
+                        publicKeys: |-
+                          -----BEGIN PUBLIC KEY-----
+                          REPLACE-WITH-JENKINS-COSIGN-PUBLIC-KEY
+                          -----END PUBLIC KEY-----
+            - type: https://cosign.sigstore.dev/attestation/vuln/v1
+              attestors:
+                - count: 1
+                  entries:
+                    - keyless:
+                        issuer: "https://gitlab.example.com"
+                        subject: "https://gitlab.example.com/platform/atlassian-images//.gitlab-ci.yml@refs/heads/main"
+                    - keys:
+                        publicKeys: |-
+                          -----BEGIN PUBLIC KEY-----
+                          REPLACE-WITH-JENKINS-COSIGN-PUBLIC-KEY
+                          -----END PUBLIC KEY-----
+              conditions:
+                - all:
+                    - key: "{{ scanner.result }}"
+                      operator: Equals
+                      value: pass
+                    - key: "{{ time_since('', '{{ metadata.scanFinishedOn }}', '') }}"
+                      operator: LessThanOrEquals
+                      value: "168h"  # scan no older than 7 days
