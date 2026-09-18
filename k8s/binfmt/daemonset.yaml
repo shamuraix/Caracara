@@ -1,0 +1,36 @@
+# Optional: QEMU user-mode emulation so a single amd64 buildkitd can build the
+# linux/arm64 half of the manifest list.  Only needed when PLATFORMS includes
+# arm64 and there is no arm64 node pool with its own buildkitd worker.
+# Alternative: drop arm64 from PLATFORMS and skip this entirely.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: binfmt
+  namespace: buildkit
+spec:
+  selector:
+    matchLabels: { app: binfmt }
+  template:
+    metadata:
+      labels: { app: binfmt }
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      initContainers:
+        - name: binfmt
+          image: artifactory.example.com/docker-hub-remote/tonistiigi/binfmt:qemu-v9.2.2
+          args: [--install, arm64]
+          securityContext:
+            privileged: true  # registers handlers in the host kernel's binfmt_misc
+      containers:
+        - name: pause
+          image: artifactory.example.com/docker-hub-remote/library/busybox:1.37
+          command: [sleep, infinity]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { memory: 16Mi }

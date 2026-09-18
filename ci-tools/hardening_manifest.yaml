@@ -1,0 +1,41 @@
+# Resources for the ci-tools job image.  buildctl, trivy and cosign are copied
+# from their upstream images (pulled through Artifactory, versions in the
+# Dockerfile ARGs); copa and crane are GitHub release tarballs pinned here.
+apiVersion: v1
+name: platform/ci-tools
+tags:
+  - latest
+args: {}
+labels:
+  org.opencontainers.image.title: ci-tools
+  org.opencontainers.image.description: buildctl, trivy, copa, cosign, crane, jq for the Atlassian image pipeline
+resources:
+  # renovate: datasource=github-releases depName=project-copacetic/copacetic
+  - arg: COPA_AMD64
+    filename: copa_0.10.0_linux_amd64.tar.gz
+    url: https://github.com/project-copacetic/copacetic/releases/download/v0.10.0/copa_0.10.0_linux_amd64.tar.gz
+    validation:
+      type: sha256
+      value: ""
+  - arg: COPA_ARM64
+    filename: copa_0.10.0_linux_arm64.tar.gz
+    url: https://github.com/project-copacetic/copacetic/releases/download/v0.10.0/copa_0.10.0_linux_arm64.tar.gz
+    validation:
+      type: sha256
+      value: ""
+  # renovate: datasource=github-releases depName=google/go-containerregistry
+  - arg: CRANE_AMD64
+    filename: go-containerregistry_Linux_x86_64.tar.gz
+    url: https://github.com/google/go-containerregistry/releases/download/v0.20.3/go-containerregistry_Linux_x86_64.tar.gz
+    validation:
+      type: sha256
+      value: ""
+  - arg: CRANE_ARM64
+    filename: go-containerregistry_Linux_arm64.tar.gz
+    url: https://github.com/google/go-containerregistry/releases/download/v0.20.3/go-containerregistry_Linux_arm64.tar.gz
+    validation:
+      type: sha256
+      value: ""
+maintainers:
+  - name: Platform team
+    email: platform@example.com

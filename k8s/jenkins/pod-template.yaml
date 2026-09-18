@@ -1,0 +1,33 @@
+# Reference pod template for the Jenkins kubernetes plugin (the Jenkinsfiles
+# embed the same YAML inline).  Kept here so the runner and Jenkins agents can
+# be diffed side by side.
+apiVersion: v1
+kind: Pod
+metadata:
+  labels: { jenkins/agent: atlassian-images }
+spec:
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  containers:
+    - name: tools
+      image: artifactory.example.com/docker-atlassian-local/ci-tools:latest
+      command: [sleep, infinity]
+      resources:
+        requests: { cpu: "1", memory: 2Gi }
+        limits: { memory: 4Gi }
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: { drop: [ALL] }
+      volumeMounts:
+        - { name: bk-certs, mountPath: /certs, readOnly: true }
+  volumes:
+    - name: bk-certs
+      secret:
+        secretName: buildkit-client-certs
+        # cert-manager key names -> the names buildctl/copa expect
+        # items:
+        #   - { key: ca.crt, path: ca.pem }
+        #   - { key: tls.crt, path: cert.pem }
+        #   - { key: tls.key, path: key.pem }

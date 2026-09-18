@@ -1,0 +1,48 @@
+# Iron Bank-style hardening manifest: the single source of truth for what
+# enters this image from outside the UBI repos.  scripts/build.sh turns
+# `args` and `resources` into build args; the Dockerfile verifies every
+# resource with ADD --checksum.  Pin or re-pin checksums with
+# scripts/pin-version.sh (product) and scripts/pin-resource.sh (everything else).
+apiVersion: v1
+name: atlassian/confluence
+tags:
+  - "9.2.5"
+  - latest
+args:
+  # Renovate bumps VERSION (custom.atlassian datasource) and re-pins the tarball.
+  VERSION: "9.2.5"
+  # Confluence tarball name.
+  ARTEFACT: atlassian-confluence
+  # Confluence 9.x supports Java 17; the JDK is an RPM so Copa can patch it.
+  JAVA_PACKAGE: java-17-openjdk-headless
+labels:
+  org.opencontainers.image.title: Atlassian Confluence Data Center
+  org.opencontainers.image.description: Confluence Data Center on UBI 9 minimal
+  org.opencontainers.image.vendor: Atlassian (product); platform team (image)
+  io.caracara.product: confluence
+resources:
+  # Product tarball.  sha256 from product-downloads' .sha256 file (scripts/pin-version.sh confluence <version>).
+  - arg: PRODUCT
+    filename: atlassian-confluence-9.2.5.tar.gz
+    url: https://product-downloads.atlassian.com/software/confluence/downloads/atlassian-confluence-9.2.5.tar.gz
+    validation:
+      type: sha256
+      value: ""
+  # tini: PID 1 for signal forwarding and zombie reaping.  Installed as the
+  # upstream release binary (glibc build; UBI minimal has glibc), one per arch.
+  # renovate: datasource=github-releases depName=krallin/tini
+  - arg: TINI_AMD64
+    filename: tini-amd64
+    url: https://github.com/krallin/tini/releases/download/v0.19.0/tini-amd64
+    validation:
+      type: sha256
+      value: 93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c
+  - arg: TINI_ARM64
+    filename: tini-arm64
+    url: https://github.com/krallin/tini/releases/download/v0.19.0/tini-arm64
+    validation:
+      type: sha256
+      value: 07952557df20bfd2a95f9bef198b445e006171969499a1d361bd9e6f8e5e0e81
+maintainers:
+  - name: Platform team
+    email: platform@example.com

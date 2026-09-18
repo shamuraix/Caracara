@@ -1,0 +1,57 @@
+# Self-hosted Renovate as a CronJob: bumps base digests (docker manager) and
+# Atlassian versions (custom datasource + regex manager, see renovate.json),
+# opening one GitLab merge request per change.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: renovate
+  namespace: renovate
+spec:
+  schedule: "0 */4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 12021
+            runAsGroup: 0
+            fsGroup: 12021
+          containers:
+            - name: renovate
+              image: artifactory.example.com/docker-hub-remote/renovate/renovate:39
+              args: [--platform=gitlab]
+              env:
+                - { name: RENOVATE_CONFIG_FILE, value: /config/config.js }
+                - { name: RENOVATE_ENDPOINT, value: https://gitlab.example.com/api/v4 }
+                - { name: RENOVATE_PLATFORM, value: gitlab }
+                - { name: RENOVATE_REPOSITORIES, value: platform/atlassian-images }
+                - { name: RENOVATE_ONBOARDING, value: "false" }
+                - { name: RENOVATE_REQUIRE_CONFIG, value: required }
+                - { name: LOG_LEVEL, value: info }
+                - name: RENOVATE_TOKEN  # GitLab project/group access token: api, write_repository
+                  valueFrom: { secretKeyRef: { name: renovate, key: gitlab-token } }
+                - name: ARTIFACTORY_USER
+                  valueFrom: { secretKeyRef: { name: renovate, key: artifactory-user } }
+                - name: ARTIFACTORY_TOKEN  # read on the remotes (docker + generic)
+                  valueFrom: { secretKeyRef: { name: renovate, key: artifactory-token } }
+                - { name: ART, value: artifactory.example.com }
+              volumeMounts:
+                - { name: config, mountPath: /config, readOnly: true }
+                - { name: tmp, mountPath: /tmp }
+              resources:
+                requests: { cpu: 500m, memory: 1Gi }
+                limits: { memory: 3Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: { drop: [ALL] }
+          volumes:
+            - name: config
+              configMap: { name: renovate-config }
+            - name: tmp
+              emptyDir: {}

@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: buildkitd-config
+  namespace: buildkit
+data:
+  # Every registry the builder touches is redirected into Artifactory so the
+  # daemon never reaches the internet (including `# syntax=docker/dockerfile`
+  # frontend images and the docker.io/tonistiigi images).
+  buildkitd.toml: |
+    debug = false
+
+    [grpc]
+      address = ["tcp://0.0.0.0:1234"]
+      [grpc.tls]
+        cert = "/certs/cert.pem"
+        key = "/certs/key.pem"
+        ca = "/certs/ca.pem"
+
+    [worker.oci]
+      enabled = true
+      rootless = true
+      noProcessSandbox = true
+      gc = true
+      gckeepstorage = 150000
+      max-parallelism = 4
+
+    [registry."docker.io"]
+      mirrors = ["artifactory.example.com/docker-hub-remote"]
+    [registry."ghcr.io"]
+      mirrors = ["artifactory.example.com/docker-ghcr-remote"]
+    [registry."registry.access.redhat.com"]
+      mirrors = ["artifactory.example.com/docker-redhat-remote"]
+    [registry."registry1.dso.mil"]
+      mirrors = ["artifactory.example.com/docker-registry1-remote"]

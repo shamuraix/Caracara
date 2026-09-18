@@ -1,0 +1,80 @@
+# One rootless buildkitd per cluster (or per node pool for arm64 workers),
+# mTLS on tcp/1234, persistent cache.  No job pod needs privileged, a Docker
+# socket or a sidecar: buildctl and copa talk to this over the network.
+# Reference: https://github.com/moby/buildkit/tree/master/examples/kubernetes
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: buildkitd
+  namespace: buildkit
+  labels: { app: buildkitd }
+spec:
+  serviceName: buildkitd
+  replicas: 1
+  selector:
+    matchLabels: { app: buildkitd }
+  template:
+    metadata:
+      labels: { app: buildkitd }
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/buildkitd: unconfined
+    spec:
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: buildkitd
+          # rootless variant; Renovate bumps the tag and pins the digest
+          image: artifactory.example.com/docker-hub-remote/moby/buildkit:v0.18.2-rootless
+          args:
+            - --config=/etc/buildkit/buildkitd.toml
+            - --oci-worker-no-process-sandbox
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile: { type: Unconfined }
+            allowPrivilegeEscalation: true  # required for rootless (newuidmap/newgidmap setuid)
+            capabilities: { drop: [ALL] }
+          ports:
+            - { name: grpc, containerPort: 1234 }
+          readinessProbe:
+            exec:
+              command: [buildctl, --addr, tcp://127.0.0.1:1234, --tlscacert, /certs/ca.pem, --tlscert, /certs/client-cert.pem, --tlskey, /certs/client-key.pem, debug, workers]
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          livenessProbe:
+            exec:
+              command: [buildctl, --addr, tcp://127.0.0.1:1234, --tlscacert, /certs/ca.pem, --tlscert, /certs/client-cert.pem, --tlskey, /certs/client-key.pem, debug, workers]
+            initialDelaySeconds: 30
+            periodSeconds: 60
+          resources:
+            requests: { cpu: "2", memory: 4Gi }
+            limits: { cpu: "8", memory: 16Gi }
+          volumeMounts:
+            - { name: cache, mountPath: /home/user/.local/share/buildkit }
+            - { name: config, mountPath: /etc/buildkit, readOnly: true }
+            - { name: certs, mountPath: /certs, readOnly: true }
+      volumes:
+        - name: config
+          configMap: { name: buildkitd-config }
+        - name: certs
+          projected:
+            sources:
+              # Server cert/key + CA, and a client cert for the probes.
+              - secret:
+                  name: buildkitd-server-certs
+                  items:
+                    - { key: ca.pem, path: ca.pem }
+                    - { key: cert.pem, path: cert.pem }
+                    - { key: key.pem, path: key.pem }
+              - secret:
+                  name: buildkit-client-certs
+                  items:
+                    - { key: cert.pem, path: client-cert.pem }
+                    - { key: key.pem, path: client-key.pem }
+  volumeClaimTemplates:
+    - metadata: { name: cache }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: { storage: 200Gi }

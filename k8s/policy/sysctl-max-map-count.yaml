@@ -1,0 +1,36 @@
+# Bitbucket's bundled OpenSearch needs vm.max_map_count >= 262144.  Rather than
+# a privileged init container in every Bitbucket pod, set it once per node.
+# This DaemonSet is the simplest way; a Kyverno mutate rule or node tuning
+# operator are alternatives.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sysctl-max-map-count
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels: { app: sysctl-max-map-count }
+  template:
+    metadata:
+      labels: { app: sysctl-max-map-count }
+    spec:
+      nodeSelector:
+        atlassian.example.com/bitbucket: "true"
+      initContainers:
+        - name: sysctl
+          image: artifactory.example.com/docker-hub-remote/library/busybox:1.37
+          command: [sh, -c, "sysctl -w vm.max_map_count=262144"]
+          securityContext:
+            privileged: true
+      containers:
+        - name: pause
+          image: artifactory.example.com/docker-hub-remote/library/busybox:1.37
+          command: [sleep, infinity]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 5m, memory: 8Mi }
+            limits: { memory: 16Mi }

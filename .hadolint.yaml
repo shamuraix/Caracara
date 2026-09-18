@@ -1,0 +1,7 @@
+# hadolint config for the UBI/microdnf Dockerfiles.
+ignored:
+  - DL3041  # "specify version with dnf install": we deliberately take the newest errata on every rebuild
+  - DL3040  # "dnf clean all" is present; hadolint does not see it through the `&&` chain reliably
+  - DL3059  # multiple consecutive RUN: the ci-tools image keeps script copy separate on purpose
+trustedRegistries:
+  - artifactory.example.com
