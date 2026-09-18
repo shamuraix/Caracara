@@ -22,20 +22,25 @@ vulnerabilities, is published on
 and the [Data Center bug-fix policy](https://confluence.atlassian.com/support/atlassian-data-center-bug-fix-policy-1218548716.html).
 Subscribe to the advisory feed and to the
 [Red Hat product life cycle page](https://access.redhat.com/product-life-cycles)
-for base-OS EOL; wire both into the same Renovate or ticket flow that bumps
-`VERSION`. Renovate's `custom.atlassian` datasource (Marketplace versions API)
-opens the MR for every new patch release on the pinned line; the emergency
-path is `scripts/pin-version.sh <product> <version>` in a hand-made MR.
+for base-OS EOL. Product versions follow Iron Bank: the weekly rebuild's
+`sync-ironbank` stage pulls each line's version from its Iron Bank upstream
+project's `development` branch, which normally moves within days of an
+advisory. The emergency path, when you cannot wait for Iron Bank, is
+`scripts/pin-version.sh <product>/lts <version>` in a hand-made MR; the next
+sync overwrites it once Iron Bank has caught up.
 
 ## Version support windows are the real EOL clock
 
 Atlassian only ships security fixes for the current feature release and the
-latest Long Term Support (LTS) line. Running an image on a Jira line that has
-left support is the same failure as running on UBI 8: no fix will ever arrive,
-however often you rebuild. `support-windows.yaml` tracks each product's LTS
-end date next to the base-OS date, and `scripts/eol_check.py` fails the lint
-stage 30 days before any of them (warns at 90). Update the file, and the
-`allowedVersions` rule in `renovate.json`, when moving to a new line.
+latest Long Term Support (LTS) line. Only the LTS line is built here (it is
+what Iron Bank hardens and what gets two years of fixes), so running an image
+on a line that has left support is the same failure as running on UBI 8: no
+fix will ever arrive, however often you rebuild. `support-windows.yaml` tracks
+each line's end date next to the base-OS date, and `scripts/eol_check.py`
+fails the lint stage 30 days before any of them (warns at 90). When Iron Bank
+moves its `<product>-lts` repository to a new LTS line, the sync follows;
+update the line's entry in `support-windows.yaml` at that point. The old LTS
+stays supported for its remaining window, so the switch is not a fire drill.
 
 ## Iron Bank as a second opinion
 

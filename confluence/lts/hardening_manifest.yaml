@@ -1,0 +1,65 @@
+# Iron Bank-style hardening manifest for this product's LTS line (the only
+# line built; Atlassian's LTS lines are what Iron Bank hardens).
+# The single source of truth for what enters the image from outside the UBI
+# repos: scripts/build.sh turns `args` and `resources` into build args and the
+# Dockerfile (../Dockerfile) verifies every resource with
+# ADD --checksum.  Pin with scripts/pin-version.sh <product>/<line> <version>
+# (product tarball) and scripts/pin-resource.sh (everything else).
+# Atlassian ships security fixes for the latest Long Term Support line for two
+# years from its .0 release; support-windows.yaml carries the date.
+# Version tracks Iron Bank's LTS image for this product (sync-ironbank.sh);
+# scripts/pin-version.sh is the manual/emergency override.
+apiVersion: v1
+# Where the version and checksums come from: scripts/sync-ironbank.sh clones the
+# `development` branch of this Iron Bank repository (Iron Bank Containers /
+# Atlassian / Confluence Data Center / confluence-lts) and rewrites args.VERSION,
+# tags and the PRODUCT resource below (plus tini/git when Iron Bank pins them).
+# The weekly rebuild runs the sync first, so every build is the LTS version
+# Iron Bank is currently hardening.  Only LTS lines are built.
+upstream:
+  ironbank:
+    repo: https://repo1.dso.mil/dsop/atlassian/confluence-data-center/confluence-lts.git
+    ref: development
+    manifest: hardening_manifest.yaml
+name: atlassian/confluence
+tags:
+  - "10.2.18"
+  - lts
+args:
+  # VERSION comes from the Iron Bank upstream above (sync-ironbank.sh).
+  VERSION: "10.2.18"
+  # Confluence tarball name.
+  ARTEFACT: atlassian-confluence
+  # Confluence 10.x runs on Java 21; the JDK is an RPM so Copa can patch it.
+  JAVA_PACKAGE: java-21-openjdk-headless
+labels:
+  org.opencontainers.image.title: Atlassian Confluence Data Center
+  org.opencontainers.image.description: Confluence Data Center on UBI 9 minimal
+  org.opencontainers.image.vendor: Atlassian (product); platform team (image)
+  io.caracara.product: confluence
+resources:
+  # Product tarball.  sha256 from product-downloads' .sha256 file (scripts/pin-version.sh confluence/lts <version>).
+  - arg: PRODUCT
+    filename: atlassian-confluence-10.2.18.tar.gz
+    url: https://product-downloads.atlassian.com/software/confluence/downloads/atlassian-confluence-10.2.18.tar.gz
+    validation:
+      type: sha256
+      value: ""
+  # tini: PID 1 for signal forwarding and zombie reaping.  Installed as the
+  # upstream release binary (glibc build; UBI minimal has glibc), one per arch.
+  # renovate: datasource=github-releases depName=krallin/tini
+  - arg: TINI_AMD64
+    filename: tini-amd64
+    url: https://github.com/krallin/tini/releases/download/v0.19.0/tini-amd64
+    validation:
+      type: sha256
+      value: 93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c
+  - arg: TINI_ARM64
+    filename: tini-arm64
+    url: https://github.com/krallin/tini/releases/download/v0.19.0/tini-arm64
+    validation:
+      type: sha256
+      value: 07952557df20bfd2a95f9bef198b445e006171969499a1d361bd9e6f8e5e0e81
+maintainers:
+  - name: Platform team
+    email: platform@example.com

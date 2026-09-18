@@ -1,4 +1,4 @@
-// Weekly rebuild + gate + sign for all products (Jenkins kubernetes plugin).
+// Weekly rebuild + gate + sign for every product's LTS line (Jenkins kubernetes plugin).
 // The agent pod is the same ci-tools image the GitLab pipeline uses, with the
 // buildkit-client-certs Secret mounted at /certs.  A second job
 // (Jenkinsfile.patch) runs the daily Copa fast path with its own cron.
@@ -8,6 +8,7 @@
 //   cosign-private-key   secret file        -> COSIGN_KEY (no OIDC identity on Jenkins)
 //   cosign-password      secret text        -> COSIGN_PASSWORD (may be empty, must exist)
 //   gitlab-issue-token   secret text        -> GITLAB_ISSUE_TOKEN (may be empty, must exist)
+//   gitlab-sync-token    secret text        -> GITLAB_SYNC_TOKEN (api + write_repository; opens the Iron Bank sync MR)
 pipeline {
   agent {
     kubernetes {
@@ -54,8 +55,14 @@ spec:
     COSIGN_KEY              = credentials('cosign-private-key')   // file credential
     COSIGN_PASSWORD         = credentials('cosign-password')
     GITLAB_ISSUE_TOKEN      = credentials('gitlab-issue-token')
+    GITLAB_SYNC_TOKEN       = credentials('gitlab-sync-token')
     CI_API_V4_URL           = 'https://gitlab.example.com/api/v4'
     CI_PROJECT_ID           = 'platform%2Fatlassian-images'
+    CI_SERVER_HOST          = 'gitlab.example.com'
+    CI_PROJECT_PATH         = 'platform/atlassian-images'
+    CI_DEFAULT_BRANCH       = 'main'
+    IRONBANK_FETCH          = 'vcs'                       // Artifactory VCS remote fronting repo1.dso.mil
+    IRONBANK_VCS_REPO       = 'vcs-ironbank-remote'
   }
   stages {
     stage('login') {
@@ -66,19 +73,28 @@ spec:
     stage('lint') {
       steps { sh 'scripts/lint.sh' }
     }
+    // Read each LTS line's Iron Bank upstream repository (development branch,
+    // via the Artifactory VCS remote) and adopt its version and checksums, so
+    // this rebuild is what Iron Bank is hardening now; the MR brings git up to date.
+    stage('sync-ironbank') {
+      steps { sh 'scripts/sync-ironbank.sh --all --open-mr; git checkout -q -- . 2>/dev/null || true' }
+    }
     stage('build+gate+sign') {
       matrix {
-        axes { axis { name 'PRODUCT'; values 'jira', 'confluence', 'bitbucket' } }
+        axes {
+          axis { name 'PRODUCT'; values 'jira', 'confluence', 'bitbucket' }
+          axis { name 'LINE'; values 'lts' }  // LTS lines only (what Iron Bank hardens)
+        }
         stages {
           stage('product') {
             steps {
               sh '''#!/usr/bin/env bash
                 set -euo pipefail
-                export OUT_DIR="out/${PRODUCT}"; mkdir -p "${OUT_DIR}"
-                scripts/build.sh "${PRODUCT}" "${BUILD_NUMBER}"
+                export OUT_DIR="out/${PRODUCT}-${LINE}"; mkdir -p "${OUT_DIR}"
+                scripts/build.sh "${PRODUCT}/${LINE}" "${BUILD_NUMBER}"
                 set -a; . "${OUT_DIR}/build.env"; set +a
                 scripts/gate.sh "${TAG}"
-                scripts/sign.sh "${TAG%%:*}@${DIGEST}" "${VERSION}"
+                EXTRA_TAGS="${LINE}" scripts/sign.sh "${TAG%%:*}@${DIGEST}" "${VERSION}" "${OUT_DIR}/vuln.json" "${OUT_DIR}/sbom.cdx.json"
               '''
             }
           }

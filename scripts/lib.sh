@@ -39,13 +39,23 @@ log()  { printf '%s [%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${0##*/}" "$*" 
 die()  { log "ERROR: $*"; exit 1; }
 need() { for t in "$@"; do command -v "$t" >/dev/null 2>&1 || die "missing tool: $t"; done; }
 
+# A build target is "<product>/lts" (jira/lts, confluence/lts, bitbucket/lts)
+# or "ci-tools".  Each target directory holds a hardening_manifest.yaml; the
+# product directory holds the Dockerfile.  Only LTS lines are built (they are
+# what Iron Bank hardens); LINES is a list so a second line could be added.
+: "${LINES:=lts}"
+
 product_dir() {
-  local product="$1"
-  [ -d "${product}" ] || die "unknown product directory: ${product}"
-  echo "${product}"
+  local target="$1"
+  [ -f "${target}/hardening_manifest.yaml" ] || die "unknown build target ${target} (expected <product>/lts or ci-tools)"
+  echo "${target}"
 }
 
-# Product version: args.VERSION in <product>/hardening_manifest.yaml.
+target_product() { echo "${1%%/*}"; }
+target_line()    { [[ "$1" == */* ]] && echo "${1#*/}" || echo "lts"; }
+target_dockerfile_dir() { echo "${1%%/*}"; }
+
+# Product version: args.VERSION in <target>/hardening_manifest.yaml.
 product_version() {
   python3 "$(dirname "${BASH_SOURCE[0]}")/manifest.py" version "$(product_dir "$1")"
 }

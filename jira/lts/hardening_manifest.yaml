@@ -1,15 +1,32 @@
-# Iron Bank-style hardening manifest: the single source of truth for what
-# enters this image from outside the UBI repos.  scripts/build.sh turns
-# `args` and `resources` into build args; the Dockerfile verifies every
-# resource with ADD --checksum.  Pin or re-pin checksums with
-# scripts/pin-version.sh (product) and scripts/pin-resource.sh (everything else).
+# Iron Bank-style hardening manifest for this product's LTS line (the only
+# line built; Atlassian's LTS lines are what Iron Bank hardens).
+# The single source of truth for what enters the image from outside the UBI
+# repos: scripts/build.sh turns `args` and `resources` into build args and the
+# Dockerfile (../Dockerfile) verifies every resource with
+# ADD --checksum.  Pin with scripts/pin-version.sh <product>/<line> <version>
+# (product tarball) and scripts/pin-resource.sh (everything else).
+# Atlassian ships security fixes for the latest Long Term Support line for two
+# years from its .0 release; support-windows.yaml carries the date.
+# SEED VALUE: the patch version below was chosen offline; re-pin with
+# scripts/pin-version.sh <product>/lts <version> to the newest patch of the line.
 apiVersion: v1
+# Where the version and checksums come from: scripts/sync-ironbank.sh clones the
+# `development` branch of this Iron Bank repository (Iron Bank Containers /
+# Atlassian / Jira Data Center / jira-lts) and rewrites args.VERSION,
+# tags and the PRODUCT resource below (plus tini/git when Iron Bank pins them).
+# The weekly rebuild runs the sync first, so every build is the LTS version
+# Iron Bank is currently hardening.  Only LTS lines are built.
+upstream:
+  ironbank:
+    repo: https://repo1.dso.mil/dsop/atlassian/jira-data-center/jira-lts.git
+    ref: development
+    manifest: hardening_manifest.yaml
 name: atlassian/jira
 tags:
   - "11.3.11"
-  - latest
+  - lts
 args:
-  # Renovate bumps VERSION (custom.atlassian datasource) and re-pins the tarball.
+  # VERSION comes from the Iron Bank upstream above (sync-ironbank.sh).
   VERSION: "11.3.11"
   # atlassian-jira-software for Jira Software, atlassian-servicedesk for JSM.
   ARTEFACT: atlassian-jira-software
@@ -21,7 +38,7 @@ labels:
   org.opencontainers.image.vendor: Atlassian (product); platform team (image)
   io.caracara.product: jira
 resources:
-  # Product tarball.  sha256 from product-downloads' .sha256 file (scripts/pin-version.sh jira <version>).
+  # Product tarball.  sha256 from product-downloads' .sha256 file (scripts/pin-version.sh jira/lts <version>).
   - arg: PRODUCT
     filename: atlassian-jira-software-11.3.11.tar.gz
     url: https://product-downloads.atlassian.com/software/jira/downloads/atlassian-jira-software-11.3.11.tar.gz

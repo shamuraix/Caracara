@@ -3,9 +3,12 @@
 #   export BUILDKIT_HOST=tcp://127.0.0.1:1234 BUILDKIT_CERTS=/nonexistent
 SHELL := /usr/bin/env bash
 PRODUCT ?= jira
+LINE ?= lts
+TARGET := $(PRODUCT)/$(LINE)
 PRODUCTS := jira confluence bitbucket
+LINES := lts
 
-.PHONY: help lint test build gate patch sign pin pin-resources manifest-check pin-base certs eol
+.PHONY: help lint test build gate patch sign sync pin pin-resources manifest-check pin-base certs eol
 
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -16,8 +19,8 @@ lint: ## shellcheck, yamllint, hadolint (if present), ignore-file and EOL checks
 test: ## python unit tests only
 	python3 -m unittest discover -s tests -t . -v
 
-build: ## build+push one product (PRODUCT=jira|confluence|bitbucket)
-	scripts/build.sh $(PRODUCT)
+build: ## build+push one product's LTS line (PRODUCT=jira|confluence|bitbucket)
+	scripts/build.sh $(TARGET)
 
 gate: ## run the Trivy gate on the image from build.env
 	set -a && source build.env && set +a && scripts/gate.sh "$$TAG"
@@ -25,17 +28,20 @@ gate: ## run the Trivy gate on the image from build.env
 sign: ## sign + attest the image from build.env and move the version tag
 	set -a && source build.env && set +a && scripts/sign.sh "$${TAG%%:*}@$$DIGEST" "$$VERSION"
 
-patch: ## copa-patch a live tag, e.g. make patch IMAGE=jira:11.3.11
-	scripts/patch.sh $(IMAGE)
+patch: ## copa-patch a live line, e.g. make patch PRODUCT=jira LINE=lts
+	scripts/patch.sh $(TARGET)
 
-pin: ## pin a product version + tarball sha256, e.g. make pin PRODUCT=jira VERSION=11.3.11
-	scripts/pin-version.sh $(PRODUCT) $(VERSION)
+sync: ## pull versions + checksums from Iron Bank development for every line (or TARGET)
+	scripts/sync-ironbank.sh --all
 
-pin-resources: ## (re)pin every resource sha256 in PRODUCT/hardening_manifest.yaml (tini, git, copa, crane)
-	scripts/pin-resource.sh $(PRODUCT) --all
+pin: ## manual override: pin a line's version + tarball sha256 from Atlassian's .sha256, e.g. make pin PRODUCT=jira LINE=lts VERSION=11.3.11
+	scripts/pin-version.sh $(TARGET) $(VERSION)
 
-manifest-check: ## list unpinned resources for every image
-	@for d in $(PRODUCTS) ci-tools; do python3 scripts/manifest.py check $$d || true; done
+pin-resources: ## (re)pin every resource sha256 in $(TARGET)/hardening_manifest.yaml (tini, git, copa, crane)
+	scripts/pin-resource.sh $(TARGET) --all
+
+manifest-check: ## list unpinned resources for every image line
+	@for p in $(PRODUCTS); do for l in $(LINES); do python3 scripts/manifest.py check $$p/$$l || true; done; done; python3 scripts/manifest.py check ci-tools || true
 
 pin-base: ## resolve and pin the base image digest for PRODUCT
 	scripts/pin-base.sh $(PRODUCT)

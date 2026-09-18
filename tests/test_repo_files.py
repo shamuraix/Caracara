@@ -16,15 +16,36 @@ class GitLabCITests(unittest.TestCase):
         self.ci = yaml.safe_load((ROOT / ".gitlab-ci.yml").read_text())
 
     def test_stages_and_jobs(self):
-        self.assertEqual(self.ci["stages"], ["lint", "build", "gate", "sign", "patch"])
+        self.assertEqual(self.ci["stages"], ["lint", "sync", "build", "gate", "sign", "patch"])
         for job in ("lint", "build", "gate", "sign", "patch"):
             self.assertIn(job, self.ci)
             self.assertEqual(self.ci[job]["stage"], job)
+        self.assertEqual(self.ci["sync-ironbank"]["stage"], "sync")
 
-    def test_matrix_covers_all_products(self):
-        matrix = self.ci[".product-matrix"]["parallel"]["matrix"][0]["PRODUCT"]
-        self.assertEqual(tuple(matrix), PRODUCTS)
-        self.assertEqual(self.ci[".product-matrix"]["variables"]["OUT_DIR"], "out/$PRODUCT")
+    def test_rebuild_syncs_from_ironbank_first(self):
+        self.assertEqual(self.ci["build"]["needs"], ["sync-ironbank"])
+        script = "\n".join(self.ci["sync-ironbank"]["script"])
+        self.assertIn("scripts/sync-ironbank.sh --all --open-mr", script)
+        paths = self.ci["sync-ironbank"]["artifacts"]["paths"]
+        for p in PRODUCTS:
+            self.assertIn(f"{p}/lts/hardening_manifest.yaml", paths)
+        self.assertIn("stage('sync-ironbank')", (ROOT / "Jenkinsfile").read_text())
+
+    def test_matrix_covers_all_products_and_lines(self):
+        matrix = self.ci[".product-matrix"]["parallel"]["matrix"][0]
+        self.assertEqual(tuple(matrix["PRODUCT"]), PRODUCTS)
+        self.assertEqual(matrix["LINE"], ["lts"])
+        self.assertEqual(self.ci[".product-matrix"]["variables"]["TARGET"], "$PRODUCT/$LINE")
+        self.assertEqual(self.ci[".product-matrix"]["variables"]["OUT_DIR"], "out/$PRODUCT-$LINE")
+        self.assertIn('scripts/build.sh "$TARGET"', self.ci["build"]["script"][1])
+        self.assertIn('scripts/patch.sh "$TARGET"', self.ci["patch"]["script"][1])
+        self.assertTrue(self.ci["sign"]["script"][1].startswith('EXTRA_TAGS="$LINE" scripts/sign.sh'))
+
+    def test_jenkins_matrix_has_line_axis(self):
+        for f in ("Jenkinsfile", "Jenkinsfile.patch"):
+            text = (ROOT / f).read_text()
+            self.assertIn("axis { name 'LINE'; values 'lts' }", text, f)
+            self.assertIn('"${PRODUCT}/${LINE}"', text, f)
         for job in ("build", "gate", "sign", "patch"):
             self.assertIn(".product-matrix", self.ci[job]["extends"], job)
 
@@ -112,19 +133,19 @@ class RenovateTests(unittest.TestCase):
         self.assertTrue(self.cfg["dockerfile"]["pinDigests"])
         self.assertIn("docker:pinDigests", self.cfg["extends"])
 
-    def test_version_managers_and_post_upgrade(self):
+    def test_product_versions_come_from_ironbank_not_renovate(self):
+        # Iron Bank's development branch is the version source (scripts/sync-ironbank.sh);
+        # Renovate must not also bump args.VERSION or the two would fight.
+        self.assertNotIn("customDatasources", self.cfg)
+        text = json.dumps(self.cfg)
+        self.assertNotIn("custom.atlassian", text)
+        self.assertNotIn("pin-version.sh", text)
         managers = {m.get("depNameTemplate"): m for m in self.cfg["customManagers"] if "depNameTemplate" in m}
-        self.assertEqual(set(managers), {"jira-software", "confluence", "bitbucket", "git/git"})
-        rules = {r["matchDepNames"][0]: r for r in self.cfg["packageRules"] if "matchDepNames" in r}
-        for product, dep in (("jira", "jira-software"), ("confluence", "confluence"), ("bitbucket", "bitbucket")):
-            cmd = rules[dep]["postUpgradeTasks"]["commands"][0]
-            self.assertEqual(cmd, f"scripts/pin-version.sh {product} {{{{{{newVersion}}}}}}")
-            self.assertEqual(rules[dep]["postUpgradeTasks"]["fileFilters"], [f"{product}/hardening_manifest.yaml"])
-            re.compile(rules[dep]["allowedVersions"].strip("/"))
+        self.assertEqual(set(managers), {"git/git"})
         resource_rule = [r for r in self.cfg["packageRules"] if "github-releases" in r.get("matchDatasources", [])][0]
         self.assertEqual(resource_rule["postUpgradeTasks"]["commands"], ["scripts/pin-resource.sh {{{packageFileDir}}} --all"])
         manifest_managers = [m for m in self.cfg["customManagers"] if "hardening_manifest" in m["managerFilePatterns"][0]]
-        self.assertGreaterEqual(len(manifest_managers), 5)
+        self.assertGreaterEqual(len(manifest_managers), 2)
 
 
 class ManifestTests(unittest.TestCase):
@@ -167,10 +188,12 @@ class SupportFilesTests(unittest.TestCase):
         self.assertEqual(str(doc["base_os"]["maintenance_ends"]), "2032-05-31")
 
     def test_no_stray_version_or_sha_files(self):
-        # hardening_manifest.yaml is the single source of truth.
+        # <product>/<line>/hardening_manifest.yaml is the single source of truth.
         for p in PRODUCTS:
             self.assertFalse((ROOT / p / "VERSION").exists(), p)
             self.assertFalse((ROOT / p / "SHA256").exists(), p)
+            self.assertTrue((ROOT / p / "lts" / "hardening_manifest.yaml").exists(), f"{p}/lts")
+            self.assertFalse((ROOT / p / "latest").exists(), f"{p}: only LTS lines are built")
 
 
 if __name__ == "__main__":

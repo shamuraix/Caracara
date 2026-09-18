@@ -33,7 +33,9 @@ Sigstore policy-controller is an equivalent alternative to Kyverno.
 - [ ] Build and pin a ci-tools image (`buildctl`, `trivy`, `copa`, `cosign`, `crane`, `jq`) in `docker-atlassian-local`; Renovate keeps it current
 - [ ] GitLab Runner with the kubernetes executor (`k8s/gitlab-runner/values.yaml`) or Jenkins kubernetes plugin (`k8s/jenkins/pod-template.yaml`) mounting `buildkit-client-certs`; no privileged pods, no Docker socket
 - [ ] Renovate as a Kubernetes CronJob (`k8s/renovate/`): `platform: gitlab`, docker manager for base digests, regex manager for `VERSION`, `hostRules` for Artifactory
-- [ ] `make manifest-check`, then `scripts/pin-version.sh` per product and `scripts/pin-resource.sh <dir> --all` for git, copa and crane; the build refuses to run while a `hardening_manifest.yaml` resource has no sha256
+- [ ] Create the `vcs-ironbank-remote` VCS remote in Artifactory (Custom provider, URL `https://repo1.dso.mil`, GitLab archive download template; see artifactory.md) and give the CI identity read on it; `make sync` then reads each `<product>-lts.git` `development` branch through it and adopts the version and checksum
+- [ ] `make manifest-check`, then `scripts/pin-resource.sh <dir> --all` for whatever Iron Bank did not supply (git, copa, crane); the build refuses to run while a `hardening_manifest.yaml` resource has no sha256
+- [ ] `GITLAB_SYNC_TOKEN` (api + write_repository) so the weekly rebuild's sync stage can open its merge request
 - [ ] `.trivyignore.yaml` with mandatory `expired_at` on every entry; CI fails on entries past expiry (`scripts/check_trivyignore.py`)
 - [ ] Signing: GitLab OIDC keyless, or a cosign key in Jenkins credentials / KMS; publish the verification policy consumers use (`k8s/policy/`)
 - [ ] Artifactory retention: keep the last 3 signed digests per version tag, clean unsigned `-patched` tags after 24h
@@ -43,9 +45,11 @@ Sigstore policy-controller is an equivalent alternative to Kyverno.
 
 - **Daily**: patch job green; any Copa "version lower than required" error triaged same day
 - **Weekly**: rebuild green for all products; review the `unfixed.json` (`will_not_fix`) list for anything Red Hat reclassified; merge Renovate MRs for manifest resources (git on Bitbucket first: it is not Copa-patchable)
-- **Monthly**: bump Atlassian minor/patch versions (merge the Renovate MRs); expire stale ignore entries; merge the UBI minor bump; re-check Trivy has vuln data for the base OS (relevant when moving to UBI 10)
+- **Weekly, after the rebuild**: merge the `sync/ironbank-<date>` MR so git matches what was built; set `support_ends` in `support-windows.yaml` when an LTS line moved
+- **Monthly**: merge the Renovate MRs (base digests, tini/git/copa/crane); expire stale ignore entries; merge the UBI minor bump; re-check Trivy has vuln data for the base OS (relevant when moving to UBI 10)
 - **Quarterly**: rehearse an emergency Atlassian advisory: from advisory to signed image in production in under 24h (`scripts/pin-version.sh`, MR, rebuild, `crane tag`)
 - **Yearly, every May 31**: confirm base-OS phase (RHEL 9 full support ends 2027-05-31; maintenance 2032-05-31) and update `support-windows.yaml`
+- **Yearly, when Atlassian announces a new LTS line** (Dec/Jan): watch for Iron Bank's `<product>-lts` project to move to it; the sync follows automatically, so the work is updating `support-windows.yaml` and re-validating the line while the old LTS still has runway
 
 ## Sources
 

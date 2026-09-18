@@ -5,7 +5,7 @@
 # hardening_manifest.yaml with a URL and sha256; scripts/build.sh passes them
 # in as <ARG>_URL / <ARG>_SHA256 build args and ADD --checksum verifies each
 # one.  Build from the repository root:
-#   scripts/build.sh jira        # or: buildctl ... $(scripts/manifest.py build-args jira)
+#   scripts/build.sh jira/lts    # or: buildctl ... $(scripts/manifest.py build-args jira/lts)
 #
 # The FROM line carries a tag and, once Renovate has run, a digest.
 ARG ART=artifactory.example.com

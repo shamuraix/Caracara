@@ -5,7 +5,7 @@
 # publishes a checksum file next to the artefact (<file>.sha256, .sha256sum,
 # or kernel.org's sha256sums.asc) it is fetched too and must agree.
 #
-# Usage: scripts/pin-resource.sh <dir> <ARG> [<ARG> ...]
+# Usage: scripts/pin-resource.sh <product>/lts|ci-tools <ARG> [<ARG> ...]
 #        scripts/pin-resource.sh <dir> --all
 #        scripts/pin-resource.sh <dir> <ARG> --url <new-url>   (bump and pin)
 set -euo pipefail

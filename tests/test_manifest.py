@@ -13,6 +13,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import manifest  # noqa: E402
 
 PRODUCTS = ("jira", "confluence", "bitbucket")
+LINES = ("lts",)
+TARGETS = tuple(f"{p}/{l}" for p in PRODUCTS for l in LINES)
 
 
 class MirrorTests(unittest.TestCase):
@@ -44,20 +46,26 @@ class MirrorTests(unittest.TestCase):
 
 
 class ManifestFileTests(unittest.TestCase):
-    def test_every_image_has_a_manifest_with_tini(self):
-        for p in PRODUCTS:
-            _, doc = manifest.load(ROOT / p)
+    def test_every_line_has_a_manifest_with_tini(self):
+        for t in TARGETS:
+            _, doc = manifest.load(ROOT / t)
             args = {manifest.resource_arg(r) for r in doc["resources"]}
-            self.assertIn("PRODUCT", args, p)
-            self.assertIn("TINI_AMD64", args, p)
-            self.assertIn("TINI_ARM64", args, p)
-            self.assertEqual(doc["tags"][0], doc["args"]["VERSION"], p)
+            self.assertIn("PRODUCT", args, t)
+            self.assertIn("TINI_AMD64", args, t)
+            self.assertIn("TINI_ARM64", args, t)
+            self.assertEqual(doc["tags"], [doc["args"]["VERSION"], t.split("/")[1]], t)
             product = manifest.find_resource(doc, "PRODUCT")
-            self.assertIn(doc["args"]["VERSION"], product["url"], p)
-            self.assertIn(doc["args"]["ARTEFACT"], product["url"], p)
+            self.assertIn(doc["args"]["VERSION"], product["url"], t)
+            self.assertIn(doc["args"]["ARTEFACT"], product["url"], t)
+
+    def test_only_lts_lines_exist(self):
+        for p in PRODUCTS:
+            self.assertTrue((ROOT / p / "lts" / "hardening_manifest.yaml").exists(), p)
+            self.assertFalse((ROOT / p / "latest").exists(), f"{p}: only LTS lines are built")
+            self.assertFalse((ROOT / p / "hardening_manifest.yaml").exists(), f"{p}: manifest must live under lts/")
 
     def test_bitbucket_pins_git_source(self):
-        _, doc = manifest.load(ROOT / "bitbucket")
+        _, doc = manifest.load(ROOT / "bitbucket" / "lts")
         git = manifest.find_resource(doc, "GIT")
         self.assertTrue(git["url"].endswith(".tar.xz"))
         self.assertIn("kernel.org", git["url"])
@@ -68,22 +76,22 @@ class ManifestFileTests(unittest.TestCase):
         self.assertEqual(args, {"COPA_AMD64", "COPA_ARM64", "CRANE_AMD64", "CRANE_ARM64"})
 
     def test_pinned_values_are_sha256(self):
-        for d in PRODUCTS + ("ci-tools",):
+        for d in TARGETS + ("ci-tools",):
             _, doc = manifest.load(ROOT / d)
             for r in doc["resources"]:
                 val = manifest.sha256_of(r)
                 self.assertTrue(val == "" or manifest.SHA256_RE.match(val), f"{d}/{manifest.resource_arg(r)}")
 
     def test_tini_pinned(self):
-        for p in PRODUCTS:
-            _, doc = manifest.load(ROOT / p)
+        for t in TARGETS:
+            _, doc = manifest.load(ROOT / t)
             for arg in ("TINI_AMD64", "TINI_ARM64"):
-                self.assertTrue(manifest.SHA256_RE.match(manifest.sha256_of(manifest.find_resource(doc, arg))), f"{p}/{arg}")
+                self.assertTrue(manifest.SHA256_RE.match(manifest.sha256_of(manifest.find_resource(doc, arg))), f"{t}/{arg}")
 
 
 class BuildArgsTests(unittest.TestCase):
     def test_build_args_shape(self):
-        _, doc = manifest.load(ROOT / "bitbucket")
+        _, doc = manifest.load(ROOT / "bitbucket" / "lts")
         args = manifest.build_args(doc, "art.local")
         self.assertEqual(args["VERSION"], doc["args"]["VERSION"])
         self.assertTrue(args["PRODUCT_URL"].startswith("https://art.local/artifactory/generic-atlassian-remote/"))
@@ -92,9 +100,10 @@ class BuildArgsTests(unittest.TestCase):
         self.assertIn("GIT_SHA256", args)
 
     def test_dockerfile_declares_every_resource_arg(self):
-        for d in PRODUCTS + ("ci-tools",):
+        # The product Dockerfile is shared by its lts/ and latest/ manifests.
+        for d in TARGETS + ("ci-tools",):
             _, doc = manifest.load(ROOT / d)
-            text = (ROOT / d / "Dockerfile").read_text()
+            text = (ROOT / d.split("/")[0] / "Dockerfile").read_text()
             for r in doc["resources"]:
                 stem = manifest.resource_arg(r)
                 self.assertIn(f"ARG {stem}_URL\n", text, f"{d}: {stem}_URL")
@@ -107,7 +116,7 @@ class BuildArgsTests(unittest.TestCase):
 class CliTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-        shutil.copy(ROOT / "jira" / "hardening_manifest.yaml", Path(self.tmp) / "hardening_manifest.yaml")
+        shutil.copy(ROOT / "jira" / "lts" / "hardening_manifest.yaml", Path(self.tmp) / "hardening_manifest.yaml")
 
     def tearDown(self):
         shutil.rmtree(self.tmp)

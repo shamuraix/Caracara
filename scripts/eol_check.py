@@ -53,9 +53,17 @@ def evaluate(doc: dict, today: dt.date, warn_within: int, fail_within: int) -> l
     if base:
         add(base.get("name", "base OS"), "full support", base.get("full_support_ends"))
         add(base.get("name", "base OS"), "maintenance", base.get("maintenance_ends"))
-    for product, info in (doc.get("products") or {}).items():
-        line = info.get("line", "?")
-        add(f"{product} {line}", "LTS" if info.get("lts") else "feature release", info.get("support_ends"), info.get("note", ""))
+    for product, lines in (doc.get("products") or {}).items():
+        # Two shapes: {lts: {...}, latest: {...}} (one entry per image line) or
+        # a single {line:, lts:, support_ends:} mapping.
+        if any(k in lines for k in ("lts", "latest")) and isinstance(lines.get("lts", lines.get("latest")), dict):
+            entries = [(key, lines[key]) for key in ("lts", "latest") if isinstance(lines.get(key), dict)]
+        else:
+            entries = [("lts" if lines.get("lts") else "latest", lines)]
+        for key, info in entries:
+            line = info.get("line", "?")
+            phase = "LTS" if key == "lts" else "feature release"
+            add(f"{product}/{key} {line}", phase, info.get("support_ends"), info.get("note", ""))
     return rows
 
 

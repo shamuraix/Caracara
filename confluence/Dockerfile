@@ -3,7 +3,7 @@
 #
 # Resources (product tarball, tini) come from hardening_manifest.yaml via
 # scripts/build.sh as <ARG>_URL / <ARG>_SHA256 build args; ADD --checksum
-# verifies each one.  Build from the repository root: scripts/build.sh confluence
+# verifies each one.  Build from the repository root: scripts/build.sh confluence/lts
 ARG ART=artifactory.example.com
 ARG TARGETARCH
 
@@ -24,8 +24,8 @@ FROM ${ART}/docker-redhat-remote/ubi9/ubi-minimal:9.7 AS runtime
 ARG TARGETARCH
 ARG VERSION
 ARG ARTEFACT=atlassian-confluence
-# Confluence 9.x supports Java 17; switch per the supported platforms page.
-ARG JAVA_PACKAGE=java-17-openjdk-headless
+# Confluence 10.x runs on Java 21 (the manifest's JAVA_PACKAGE arg overrides this default).
+ARG JAVA_PACKAGE=java-21-openjdk-headless
 ARG PRODUCT_URL
 ARG PRODUCT_SHA256
 

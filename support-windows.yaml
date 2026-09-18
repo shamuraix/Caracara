@@ -1,26 +1,31 @@
 # The real EOL clock.  scripts/eol_check.py reads this in every pipeline and
-# fails when a window is expired or within 30 days.  Update it when bumping a
-# product line or the base OS.  Sources: endoflife.date/rhel (Red Hat product
-# life cycle) and Atlassian's Data Center bug-fix / LTS policy.
+# fails when a window is expired or within 30 days (warns at 90).  Update it
+# when re-pinning a line or the base OS.  Sources: endoflife.date/rhel (Red
+# Hat product life cycle) and Atlassian's Data Center bug-fix / LTS policy.
+#
+# Each product has one line, matching <product>/lts: Long Term Support,
+# security fixes for two years from the .0 release.  `null` reports as
+# "unknown" (warning only) until you set it from the release notes.
 base_os:
   name: RHEL 9 / UBI 9
   full_support_ends: 2027-05-31
   maintenance_ends: 2032-05-31
 products:
   jira:
-    line: "11.3"
-    lts: false
-    # Feature releases are supported until the next feature release plus the
-    # bug-fix window; set this from Atlassian's release notes when you pin a
-    # line.  `null` reports as "unknown" (warning only).
-    support_ends: null
-    note: "set from https://confluence.atlassian.com/jirasoftware/jira-software-release-notes"
+    lts:
+      line: "11.3"
+      # Jira LTS lines: 9.4, 9.12, 10.3, 11.3 (one per year); 11.3 shipped Dec 2025.
+      support_ends: 2027-12-01
+      note: "verify against https://confluence.atlassian.com/jirasoftware/jira-software-release-notes"
   confluence:
-    line: "9.2"
-    lts: true
-    # LTS lines get security fixes for two years from the .0 release.
-    support_ends: 2026-12-11
+    lts:
+      line: "10.2"
+      # 10.2 is the LTS line Iron Bank tracks (confluence 10.2.18); two years from its .0 release.
+      support_ends: 2027-12-01
+      note: "verify against https://confluence.atlassian.com/doc/confluence-release-notes-327.html"
   bitbucket:
-    line: "9.4"
-    lts: true
-    support_ends: 2027-01-21
+    lts:
+      line: "10.2"
+      # 10.2 is the LTS line Iron Bank tracks (bitbucket-lts 10.2.7); two years from its .0 release.
+      support_ends: 2028-01-15
+      note: "verify against https://confluence.atlassian.com/bitbucketserver/bitbucket-data-center-release-notes-872139866.html"

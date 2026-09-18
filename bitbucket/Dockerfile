@@ -6,7 +6,7 @@
 # build args; ADD --checksum verifies each one.  git is compiled from the
 # pinned kernel.org tarball in the git-builder stage, as Iron Bank does, so
 # the version Bitbucket hosts with is chosen here and not by the UBI repo.
-# Build from the repository root: scripts/build.sh bitbucket
+# Build from the repository root: scripts/build.sh bitbucket/lts
 #
 # Runtime notes: the bundled OpenSearch needs vm.max_map_count >= 262144 on
 # the node (k8s/policy/sysctl-max-map-count.yaml); set SEARCH_ENABLED=false
@@ -52,8 +52,8 @@ FROM ${ART}/docker-redhat-remote/ubi9/ubi-minimal:9.7 AS runtime
 ARG TARGETARCH
 ARG VERSION
 ARG ARTEFACT=atlassian-bitbucket
-# Bitbucket 9.x supports Java 17 and 21.
-ARG JAVA_PACKAGE=java-17-openjdk-headless
+# Bitbucket 10.x runs on Java 21 (the manifest's JAVA_PACKAGE arg overrides this default).
+ARG JAVA_PACKAGE=java-21-openjdk-headless
 ARG PRODUCT_URL
 ARG PRODUCT_SHA256
 

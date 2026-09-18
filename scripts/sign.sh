@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Sign an image digest, attach the vulnerability and SBOM attestations, and
-# move the mutable version tag to it (promotion).
+# move the mutable tags to it (promotion): the version tag, plus every tag in
+# EXTRA_TAGS (the line tag `lts`, space separated).
 #
 # Usage: scripts/sign.sh <repo/name@sha256:...> <version-tag> [vuln.json] [sbom.cdx.json]
 # Keyless (GitLab OIDC, SIGSTORE_ID_TOKEN) when COSIGN_KEY is unset, key-based otherwise.
@@ -26,5 +27,7 @@ if [ -s "${sbom}" ]; then
 fi
 
 name="${ref%%@*}"
-log "promoting: ${name}:${version} -> ${ref#*@}"
-crane tag "${ref}" "${version}"
+for t in "${version}" ${EXTRA_TAGS:-}; do
+  log "promoting: ${name}:${t} -> ${ref#*@}"
+  crane tag "${ref}" "${t}"
+done

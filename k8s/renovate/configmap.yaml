@@ -14,11 +14,10 @@ data:
       gitAuthor: "Renovate Bot <renovate@example.com>",
       repositories: (process.env.RENOVATE_REPOSITORIES || "").split(",").filter(Boolean),
       binarySource: "install",
-      // postUpgradeTasks run scripts/pin-version.sh inside the Renovate pod;
-      // both are allow-listed explicitly.
+      // postUpgradeTasks run scripts/pin-resource.sh inside the Renovate pod
+      // (product versions come from Iron Bank via sync-ironbank.sh, not Renovate).
       allowedCommands: [
-        "^scripts/pin-version\\.sh (jira|confluence|bitbucket) [0-9.]+$",
-        "^scripts/pin-resource\\.sh (jira|confluence|bitbucket|ci-tools) --all$",
+        "^scripts/pin-resource\\.sh ((jira|confluence|bitbucket)/lts|ci-tools) --all$",
       ],
       allowScripts: false,
       // Everything the datasources touch goes through Artifactory.
