@@ -31,7 +31,11 @@ import uuid
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
-import jinja2
+try:
+    import jinja2
+except ImportError:  # pragma: no cover
+    sys.exit("error: the Jinja2 module is not installed (python3-jinja2 in the image; "
+             "python3 -m pip install -r requirements-dev.txt for the tests)")
 
 log = logging.getLogger("entrypoint")
 

@@ -1,0 +1,6 @@
+# Everything `make lint` / `make test` needs on a workstation:
+#   python3 -m pip install -r requirements-dev.txt   (or: make deps)
+-r requirements.txt
+Jinja2>=3.1        # entrypoint template tests (python3-jinja2 inside the product images)
+yamllint>=1.35
+shellcheck-py>=0.10

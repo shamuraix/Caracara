@@ -66,6 +66,13 @@ support-windows.yaml           the EOL clock: base OS and product LTS dates
 renovate.json                  digest pinning, Atlassian custom datasource, postUpgradeTasks
 ```
 
+## Prerequisites on a workstation
+
+The pipeline scripts are Python 3.9+ and need PyYAML; the tests and `make
+lint` also need Jinja2, yamllint and shellcheck. Install them once with
+`make deps` (`python3 -m pip install -r requirements-dev.txt`). Inside the
+ci-tools image the same modules come from UBI RPMs, so CI needs nothing extra.
+
 ## Quick start
 
 1. **Artifactory**: create the repositories in [docs/artifactory.md](docs/artifactory.md)

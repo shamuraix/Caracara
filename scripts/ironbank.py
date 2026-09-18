@@ -30,7 +30,15 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import yaml
+try:
+    import yaml
+except ImportError:  # pragma: no cover - environment problem, not a code path
+    sys.exit(
+        "error: the PyYAML module is not installed.\n"
+        "  workstation: python3 -m pip install -r requirements.txt   (or: make deps)\n"
+        "  UBI/RHEL:    microdnf install python3-pyyaml\n"
+        "  Debian:      apt install python3-yaml"
+    )
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import manifest  # noqa: E402

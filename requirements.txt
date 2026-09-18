@@ -1,0 +1,5 @@
+# Runtime dependencies of the pipeline scripts in scripts/ (manifest.py,
+# ironbank.py, check_trivyignore.py, eol_check.py).  Inside the ci-tools image
+# these come from the UBI RPM python3-pyyaml; on a workstation:
+#   python3 -m pip install -r requirements.txt      (or: make deps)
+PyYAML>=6.0

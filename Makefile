@@ -8,7 +8,10 @@ TARGET := $(PRODUCT)/$(LINE)
 PRODUCTS := jira confluence bitbucket
 LINES := lts
 
-.PHONY: help lint test build gate patch sign sync pin pin-resources manifest-check pin-base certs eol
+.PHONY: deps help lint test build gate patch sign sync pin pin-resources manifest-check pin-base certs eol
+
+deps: ## install the python tooling the scripts and tests need (PyYAML, Jinja2, yamllint, shellcheck)
+	python3 -m pip install -r requirements-dev.txt
 
 help: ## list targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
