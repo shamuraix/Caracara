@@ -33,7 +33,7 @@ Sigstore policy-controller is an equivalent alternative to Kyverno.
 - [ ] Build and pin a ci-tools image (`buildctl`, `trivy`, `copa`, `cosign`, `crane`, `jq`) in `docker-atlassian-local`; Renovate keeps it current
 - [ ] GitLab Runner with the kubernetes executor (`k8s/gitlab-runner/values.yaml`) or Jenkins kubernetes plugin (`k8s/jenkins/pod-template.yaml`) mounting `buildkit-client-certs`; no privileged pods, no Docker socket
 - [ ] Renovate as a Kubernetes CronJob (`k8s/renovate/`): `platform: gitlab`, docker manager for base digests, regex manager for `VERSION`, `hostRules` for Artifactory
-- [ ] Give runners a way to clone repo1.dso.mil (egress allow-list, or GitLab pull mirrors + `IRONBANK_GIT_BASE`); `make sync` then clones each `<product>-lts.git` `development` branch and adopts its version and checksum
+- [ ] Create the `vcs-ironbank-remote` VCS remote in Artifactory (Custom provider, URL `https://repo1.dso.mil`, GitLab archive download template; see artifactory.md) and give the CI identity read on it; `make sync` then reads each `<product>-lts.git` `development` branch through it and adopts the version and checksum
 - [ ] `make manifest-check`, then `scripts/pin-resource.sh <dir> --all` for whatever Iron Bank did not supply (git, copa, crane); the build refuses to run while a `hardening_manifest.yaml` resource has no sha256
 - [ ] `GITLAB_SYNC_TOKEN` (api + write_repository) so the weekly rebuild's sync stage can open its merge request
 - [ ] `.trivyignore.yaml` with mandatory `expired_at` on every entry; CI fails on entries past expiry (`scripts/check_trivyignore.py`)

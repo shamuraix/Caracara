@@ -61,6 +61,8 @@ spec:
     CI_SERVER_HOST          = 'gitlab.example.com'
     CI_PROJECT_PATH         = 'platform/atlassian-images'
     CI_DEFAULT_BRANCH       = 'main'
+    IRONBANK_FETCH          = 'vcs'                       // Artifactory VCS remote fronting repo1.dso.mil
+    IRONBANK_VCS_REPO       = 'vcs-ironbank-remote'
   }
   stages {
     stage('login') {
@@ -71,9 +73,9 @@ spec:
     stage('lint') {
       steps { sh 'scripts/lint.sh' }
     }
-    // Clone each LTS line's Iron Bank upstream repository (development
-    // branch) and adopt its version and checksums, so this rebuild is what
-    // Iron Bank is hardening now; the MR brings git up to date.
+    // Read each LTS line's Iron Bank upstream repository (development branch,
+    // via the Artifactory VCS remote) and adopt its version and checksums, so
+    // this rebuild is what Iron Bank is hardening now; the MR brings git up to date.
     stage('sync-ironbank') {
       steps { sh 'scripts/sync-ironbank.sh --all --open-mr; git checkout -q -- . 2>/dev/null || true' }
     }

@@ -42,10 +42,10 @@ Pinning:
   git repository the line tracks, as a clone URL
   (`https://repo1.dso.mil/dsop/atlassian/<product>-data-center/<product>-lts.git`)
   plus `ref: development` and the manifest path.
-  `scripts/sync-ironbank.sh <product>/lts | --all` shallow-clones that branch
-  (`IRONBANK_GIT_BASE` rewrites the repo1 prefix to a GitLab pull mirror when
-  runners have no egress; `IRONBANK_GIT_TOKEN` authenticates a private group)
-  and `scripts/ironbank.py apply` rewrites ours: `args.VERSION`, `tags`, the
+  `scripts/sync-ironbank.sh <product>/lts | --all` reads that branch through
+  the Artifactory VCS remote (`IRONBANK_FETCH=vcs`, the default; `git`
+  shallow-clones the repository directly) and `scripts/ironbank.py apply`
+  rewrites ours: `args.VERSION`, `tags`, the
   `PRODUCT` url and sha256 (the one Iron Bank's pipeline verified), and any
   resource Iron Bank pins under the same filename shape (tini, git). Nothing
   else is touched, and the result is idempotent. `--open-mr` commits the

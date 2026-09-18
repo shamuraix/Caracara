@@ -75,8 +75,10 @@ renovate.json                  digest pinning, Atlassian custom datasource, post
    Secret into the runner / Jenkins namespaces.
 3. **ci-tools image**: build `ci-tools/Dockerfile` once by hand (it is the
    bootstrap image) and push it to `docker-atlassian-local/ci-tools`.
-4. **Sync and pin**: `make sync` clones every LTS line's Iron Bank repository
-   (`development` branch) and adopts its version and product checksum.
+4. **Sync and pin**: create the `vcs-ironbank-remote` VCS remote (see
+   [docs/artifactory.md](docs/artifactory.md)), then `make sync` reads every
+   LTS line's Iron Bank repository (`development` branch) through it and
+   adopts the version and product checksum.
    `make manifest-check` then lists what is still unpinned:
    `scripts/pin-resource.sh bitbucket/lts GIT` (unless Iron Bank supplied it)
    and `scripts/pin-resource.sh ci-tools --all` download and pin git, copa and
@@ -117,13 +119,13 @@ be added as another directory and matrix value if you ever need one.
 repository it tracks under `upstream.ironbank`, in the form
 `https://repo1.dso.mil/dsop/atlassian/<product>-data-center/<product>-lts.git`
 (Iron Bank Containers / Atlassian / *Product* Data Center / `<product>-lts`).
-`scripts/sync-ironbank.sh --all` shallow-clones that repository's
-**`development` branch** and adopts the product version, the tarball URL and
-sha256 Iron Bank verifies, and tini/git pins when Iron Bank carries them. The
-weekly rebuild runs the sync first, builds from the synced manifests, and
-opens a merge request so git catches up; `make sync` does the same locally.
-Runners without egress to repo1.dso.mil set `IRONBANK_GIT_BASE` to a GitLab
-pull mirror of the Iron Bank projects. Renovate deliberately does not touch
+`scripts/sync-ironbank.sh --all` reads that repository's **`development`
+branch** through an Artifactory VCS remote fronting repo1.dso.mil
+(`IRONBANK_FETCH=git` clones it directly instead) and adopts the product
+version, the tarball URL and sha256 Iron Bank verifies, and tini/git pins
+when Iron Bank carries them. The weekly rebuild runs the sync first, builds
+from the synced manifests, and opens a merge request so git catches up;
+`make sync` does the same locally. Renovate deliberately does not touch
 product versions. Tags in `docker-atlassian-local`:
 
 | Tag | Mutable | Meaning |

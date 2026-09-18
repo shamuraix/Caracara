@@ -20,16 +20,40 @@ through; `scripts/manifest.py` rewrites the upstream URLs in each
 | `docker-atlassian-local` | Docker local | Your built, patched, signed images, the ci-tools image and the BuildKit registry cache (`cache/<product>`) | `--output`, `copa --push`, deploys |
 | `docker` | Docker virtual | All of the above | Single pull endpoint for clusters |
 
-## Iron Bank source repositories
+## Iron Bank source repositories: the VCS remote
 
-`scripts/sync-ironbank.sh` clones git repositories on `repo1.dso.mil`
+`scripts/sync-ironbank.sh` reads each product's Iron Bank repository
 (`https://repo1.dso.mil/dsop/atlassian/<product>-data-center/<product>-lts.git`,
-branch `development`), which Artifactory generic remotes cannot serve. Either
-allow the CI runner namespace egress to `repo1.dso.mil:443`, or create GitLab
-**pull mirrors** of the three Iron Bank projects in your own GitLab (for
-example under `mirrors/dsop/atlassian/...`) and set
-`IRONBANK_GIT_BASE=https://gitlab.example.com/mirrors/` so the sync clones
-from there. `IRONBANK_GIT_TOKEN` supplies a token for private groups.
+branch `development`) through an Artifactory **VCS remote** so no runner
+needs egress to repo1.dso.mil:
+
+| Setting | Value |
+|---|---|
+| Repository key | `vcs-ironbank-remote` (CI variable `IRONBANK_VCS_REPO`) |
+| Package type | VCS |
+| Git provider | Custom (Iron Bank's GitLab; nested groups) |
+| URL | `https://repo1.dso.mil` |
+| Download URL template (Custom provider) | `{0}/{1}/-/archive/{2}/{1}-{2}.tar.gz` (GitLab branch archive; `{0}` group path, `{1}` project, `{2}` ref) |
+| Credentials | a repo1 token if the `dsop/atlassian` group is not readable anonymously |
+
+The sync then calls Artifactory's VCS REST API:
+
+- `GET /api/vcs/downloadBranchFile/vcs-ironbank-remote/<group>/<project>/development!hardening_manifest.yaml`
+  (default: one file), with `<group>` URL-encoded (`dsop%2Fatlassian%2F<product>-data-center`);
+- or, with `IRONBANK_VCS_ARCHIVE=true`, `GET /api/vcs/downloadBranch/.../development?ext=tar.gz`
+  and unpacks `hardening_manifest.yaml` from the archive.
+
+If your Artifactory version resolves the nested group path differently, set
+`IRONBANK_VCS_TEMPLATE` to the exact URL shape it accepts, using the
+placeholders `{art} {vcsrepo} {org} {org_enc} {repo} {ref} {file}` (a template
+without `{file}` is treated as an archive). The request authenticates with the
+same Artifactory identity the runner already has (`~/.docker/config.json`
+from `ART_DOCKER_CONFIG`, or `ARTIFACTORY_TOKEN` as a bearer token), so the
+VCS remote's read permission goes to that CI identity.
+
+`IRONBANK_FETCH=git` bypasses Artifactory and shallow-clones the repository
+directly (local use, or runners with egress); `IRONBANK_GIT_BASE` and
+`IRONBANK_GIT_TOKEN` point that mode at a mirror or a private group.
 
 ## Credentials
 

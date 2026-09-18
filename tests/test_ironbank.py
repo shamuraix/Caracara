@@ -50,6 +50,31 @@ class RepoTests(unittest.TestCase):
         with self.assertRaises(ironbank.SyncError):
             ironbank.upstream({})
 
+    def test_project_path_and_vcs_url(self):
+        _, doc = manifest.load(ROOT / "bitbucket" / "lts")
+        self.assertEqual(ironbank.project_path(doc), ("dsop/atlassian/bitbucket-data-center", "bitbucket-lts"))
+        self.assertEqual(
+            ironbank.vcs_url(doc, "art.local", "vcs-ironbank-remote"),
+            "https://art.local/artifactory/api/vcs/downloadBranchFile/vcs-ironbank-remote/dsop%2Fatlassian%2Fbitbucket-data-center/bitbucket-lts/development!hardening_manifest.yaml",
+        )
+        self.assertEqual(
+            ironbank.vcs_url(doc, "art.local", "k", ironbank.VCS_ARCHIVE_TEMPLATE),
+            "https://art.local/artifactory/api/vcs/downloadBranch/k/dsop%2Fatlassian%2Fbitbucket-data-center/bitbucket-lts/development?ext=tar.gz",
+        )
+        custom = ironbank.vcs_url(doc, "a", "k", "https://{art}/x/{org}/{repo}/{ref}/{file}")
+        self.assertEqual(custom, "https://a/x/dsop/atlassian/bitbucket-data-center/bitbucket-lts/development/hardening_manifest.yaml")
+        ssh = {"upstream": {"ironbank": {"repo": "git@repo1.dso.mil:dsop/atlassian/jira-data-center/jira-lts.git"}}}
+        self.assertEqual(ironbank.project_path(ssh), ("dsop/atlassian/jira-data-center", "jira-lts"))
+        with self.assertRaises(ironbank.SyncError):
+            ironbank.project_path({"upstream": {"ironbank": {"repo": "https://repo1.dso.mil/solo.git"}}})
+
+    def test_vcs_url_cli(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = ironbank.main(["vcs-url", str(ROOT / "jira" / "lts"), "--art", "a", "--vcs-repo", "v", "--archive"])
+        self.assertEqual(rc, 0)
+        self.assertIn("/api/vcs/downloadBranch/v/dsop%2Fatlassian%2Fjira-data-center/jira-lts/development?ext=tar.gz", out.getvalue())
+
     def test_repo_cli(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):

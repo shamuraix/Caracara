@@ -15,7 +15,7 @@ flowchart LR
 | Trigger | Action | Output |
 |---|---|---|
 | Renovate MR: base digest or a manifest resource (tini, git, copa, crane) bumped | Full rebuild on the MR, merge, rebuild on main | New `X.Y.Z-<pipeline id>` tag, version tag moved |
-| Iron Bank moves a line (new version on `<product>-lts.git`'s `development` branch) | `sync-ironbank` stage of the weekly rebuild clones it, adopts it, builds it, opens an MR | New `X.Y.Z-<pipeline id>` tag; `X.Y.Z` and `lts` tags moved; MR `sync/ironbank-<date>` |
+| Iron Bank moves a line (new version on `<product>-lts.git`'s `development` branch) | `sync-ironbank` stage of the weekly rebuild reads it via the VCS remote, adopts it, builds it, opens an MR | New `X.Y.Z-<pipeline id>` tag; `X.Y.Z` and `lts` tags moved; MR `sync/ironbank-<date>` |
 | GitLab pipeline schedule / Jenkins `cron('H 2 * * 0')` with `JOB=rebuild` | Sync from Iron Bank, then full rebuild of every LTS line: `PRODUCT x LINE` = jira, confluence, bitbucket x lts | New `X.Y.Z-<pipeline id>` tag; `X.Y.Z` and `lts` tags moved |
 | GitLab pipeline schedule / Jenkins `cron('H 6 * * *')` with `JOB=patch` | Trivy on each live line's version tag; if fixable OS CVEs, `copa patch` and re-gate | Version and line tags moved to the patched digest |
 | Trivy `--exit-on-eol` returns 2 | Fail and open a GitLab issue: base OS reached EOL, bump major | Issue |
@@ -46,9 +46,10 @@ credentials.
 
 `.gitlab-ci.yml`, stages `lint, sync, build, gate, sign, patch`. Two schedules
 set `JOB=rebuild` (weekly) and `JOB=patch` (daily). The `sync-ironbank` job
-runs on every rebuild pipeline: on the schedule it clones each LTS line's Iron
-Bank repository (`development`), adopts its version and checksums, passes the
-updated manifests to the later stages as artifacts (GitLab restores them over the checkout, so the
+runs on every rebuild pipeline: on the schedule it reads each LTS line's Iron
+Bank repository (`development`, through the Artifactory VCS remote), adopts
+its version and checksums, passes the updated manifests to the later stages
+as artifacts (GitLab restores them over the checkout, so the
 rebuild is what Iron Bank is hardening right now) and opens a merge request
 with `GITLAB_SYNC_TOKEN`; on merge requests and pushes it only reports drift.
 The matrix is `PRODUCT x LINE` (with
