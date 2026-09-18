@@ -5,6 +5,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 rc=0
 
+echo "== python dependencies"
+if ! python3 -c "import yaml, jinja2" 2>/dev/null; then
+  echo "missing PyYAML and/or Jinja2: python3 -m pip install -r requirements-dev.txt (or: make deps)" >&2
+  exit 1
+fi
+
 if command -v shellcheck >/dev/null 2>&1; then
   echo "== shellcheck"
   shellcheck -x scripts/*.sh shared/*.sh shared/support/*.sh || rc=1
